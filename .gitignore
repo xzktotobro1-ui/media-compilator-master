@@ -1,0 +1,27 @@
+# Сгенерированные сборки и бинарники
+dist/
+build/
+dist_new/
+*.spec.bak
+*.msi
+*.exe
+*.dll
+*.pyd
+*.bin
+*.param
+models/
+_assets_backup/
+
+# Логи и пользовательские данные
+*.log
+settings.json
+crash_log.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Сгенерированный WiX-источник
+installer/Package.wxs
