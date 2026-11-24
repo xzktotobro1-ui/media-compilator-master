@@ -21,8 +21,8 @@ WIX_NS = "http://wixtoolset.org/schemas/v4/wxs"
 ET.register_namespace("", WIX_NS)
 
 PRODUCT_NAME = "RTX Media Master"
-MANUFACTURER = "xzkto"
-VERSION = "3.0.0"
+MANUFACTURER = "x_kitaikuyo_x"
+VERSION = "3.1.0"
 UPGRADE_CODE = "e6e4e0d9-4a4b-5f1c-9d3e-7a1b2c3d4e5f"
 EXE_NAME = "RTX_Media_Master_v3.exe"
 

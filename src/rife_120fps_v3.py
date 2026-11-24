@@ -33,6 +33,7 @@ import threading
 import time
 import urllib.request
 import zipfile
+import ctypes
 import tkinter as tk
 from contextlib import contextmanager
 from dataclasses import dataclass, field, asdict
@@ -49,7 +50,7 @@ from typing import Callable, Iterator
 # ---------------------------------------------------------------------------
 
 APP_NAME = "RTX Media Master"
-APP_VERSION = "v3.0"
+APP_VERSION = "v3.1.0"
 
 # Сквозной прогресс по стадиям RIFE-конвейера (проценты общего прогресса)
 STAGE_EXTRACT_SPAN = (0.0, 12.0)
@@ -61,7 +62,19 @@ THEME_CREATIVE = "AI Dark (Pro Creative)"
 THEME_SYSTEM = "Как в Windows"
 THEME_LIGHT = "Светлая"
 THEME_DARK = "Тёмная"
-THEME_CHOICES = [THEME_CREATIVE, THEME_SYSTEM, THEME_LIGHT, THEME_DARK]
+THEME_NORD = "Nord (Arctic)"
+THEME_OCEAN = "Ocean Light"
+THEME_SOLAR = "Solarized Dark"
+THEME_CHOICES = [
+    THEME_CREATIVE, THEME_SYSTEM, THEME_LIGHT, THEME_DARK,
+    THEME_NORD, THEME_OCEAN, THEME_SOLAR,
+]
+
+FONT_REGISTRY = {
+    "body": 9, "caption": 9, "subtitle": 12, "header": 18,
+    "value": 12, "nav": 13, "mono": 10, "tooltip": 9,
+}
+SPACING = {"xs": 2, "sm": 4, "md": 8, "lg": 12, "xl": 16}
 
 # Пиктограммы в духе Segoe MDL2. Используем обычные Юникод-глифы: они
 # отрисовываются монохромно системным шрифтом и не зависят от PUA-шрифта.
@@ -565,6 +578,36 @@ def fluent_palette(theme_key: str) -> dict[str, object]:
             "info": creative_accent, "trough": "#0D0F12", "track": "#323842",
             "disabled": "#1B1F26", "list_fg": "#F3F4F6",
         }
+    if theme_key == THEME_NORD:
+        return {
+            "dark": True, "bg": "#2E3440", "card": "#3B4252",
+            "card_alt": "#434C5E", "elevated": "#434C5E", "field": "#2E3440",
+            "fg": "#ECEFF4", "muted": "#A4B0BE", "border": "#4C566A",
+            "accent": "#88C0D0", "accent_hover": "#A3D0DD", "accent_fg": "#2E3440",
+            "success": "#A3BE8C", "warn": "#D08770", "info": "#81A1C1",
+            "trough": "#2E3440", "track": "#4C566A", "disabled": "#3B4252",
+            "list_fg": "#ECEFF4",
+        }
+    if theme_key == THEME_OCEAN:
+        return {
+            "dark": False, "bg": "#EAF2F8", "card": "#FFFFFF",
+            "card_alt": "#D6E8F5", "elevated": "#F4F9FD", "field": "#FFFFFF",
+            "fg": "#10334A", "muted": "#4E6E82", "border": "#BFD7E6",
+            "accent": "#0078D4", "accent_hover": "#005A9E", "accent_fg": "#FFFFFF",
+            "success": "#0E7A0D", "warn": "#C4314B", "info": "#0078D4",
+            "trough": "#D6E8F5", "track": "#AFC9DB", "disabled": "#E4EDF4",
+            "list_fg": "#10334A",
+        }
+    if theme_key == THEME_SOLAR:
+        return {
+            "dark": True, "bg": "#002B36", "card": "#073642",
+            "card_alt": "#0B4350", "elevated": "#0B4350", "field": "#002B36",
+            "fg": "#EEE8D5", "muted": "#93A1A1", "border": "#14505E",
+            "accent": "#2AA198", "accent_hover": "#3BC4B9", "accent_fg": "#002B36",
+            "success": "#859900", "warn": "#CB4B16", "info": "#268BD2",
+            "trough": "#002B36", "track": "#14505E", "disabled": "#073642",
+            "list_fg": "#EEE8D5",
+        }
     dark_accent = mix_colors(accent, "#FFFFFF", 0.35)
     return {
         "dark": True, "bg": "#202020", "card": "#2B2B2B", "card_alt": "#383838",
@@ -728,6 +771,11 @@ class ToolTip:
 class VideoProcessorApp:
     def __init__(self, window: Tk):
         self.window = window
+        self.window.app = self
+        self.accent_rail = tk.Canvas(
+            window, height=3, bd=0, highlightthickness=0, takefocus=False
+        )
+        self.accent_rail.place(relx=0, rely=0, relwidth=1, height=3)
         self.settings = AppSettings.load()
         self.window.title(f"{APP_NAME} {APP_VERSION} — Video Interpolator")
         self.window.geometry(self.settings.geometry)
@@ -803,6 +851,18 @@ class VideoProcessorApp:
         self.window.after(400, self.verify_and_download_dependencies_bootstrap)
         self.window.after(150, self.poll_ui_events)
         self.window.after(1000, self.update_vram_meter_display)
+        self.window.bind("<Control-1>", lambda _e: self.show_page(PAGE_QUEUE))
+        self.window.bind("<Control-2>", lambda _e: self.show_page(PAGE_DIAG))
+        self.window.bind("<Control-3>", lambda _e: self.show_page(PAGE_SETTINGS))
+        self.window.bind("<Control-4>", lambda _e: self.show_page(PAGE_LOG))
+        self.window.bind("<Control-t>", lambda _e: self.cycle_theme())
+        self.window.bind(
+            "<Control-f>",
+            lambda _e: (
+                self.show_page(PAGE_QUEUE),
+                self.search_entry.focus_set(),
+            ),
+        )
 
     # --------------------------- hardware ---------------------------------
 
@@ -1015,16 +1075,17 @@ class VideoProcessorApp:
 
         self.style.configure(
             ".", background=str(p["bg"]), foreground=str(p["fg"]),
-            fieldbackground=str(p["field"]), font=(font, 9),
+            fieldbackground=str(p["field"]), font=(font, FONT_REGISTRY["body"]),
         )
         self.style.configure("TFrame", background=str(p["bg"]))
-        self.style.configure("TLabel", background=str(p["bg"]), foreground=str(p["fg"]))
+        self.style.configure("Inner.TFrame", background=str(p["card"]))
+        self.style.configure("TLabel", background=str(p["card"]), foreground=str(p["fg"]))
         self.style.configure(
-            "TLabelframe", background=str(p["bg"]), bordercolor=str(p["border"]),
+            "TLabelframe", background=str(p["card"]), bordercolor=str(p["border"]),
             lightcolor=str(p["border"]), darkcolor=str(p["border"]),
         )
         self.style.configure(
-            "TLabelframe.Label", background=str(p["bg"]), foreground=accent,
+            "TLabelframe.Label", background=str(p["card"]), foreground=accent,
             font=(font, 10, "bold"),
         )
         self.style.configure(
@@ -1089,14 +1150,14 @@ class VideoProcessorApp:
         )
         scroll_thumb = mix_colors(str(p["track"]), str(p["accent"]), 0.45)
         self.style.configure(
-            "TScrollbar", background=scroll_thumb, troughcolor=str(p["bg"]),
+            "TScrollbar", background=scroll_thumb, troughcolor=str(p["card"]),
             bordercolor=str(p["border"]), arrowcolor=str(p["muted"]),
             width=12, arrowsize=0, gripcount=1, relief="flat",
         )
         self.style.configure("TSeparator", background=str(p["border"]))
         for style_name, color in (
             ("Horizontal.TProgressbar", accent),
-            ("Vram.Horizontal.TProgressbar", "#0078D4" if p["dark"] else "#005A9E"),
+            ("Vram.Horizontal.TProgressbar", accent),
         ):
             self.style.configure(
                 style_name, background=color, troughcolor=str(p["trough"]),
@@ -1108,7 +1169,7 @@ class VideoProcessorApp:
             ("Info.TLabel", str(p["info"])),
             ("Muted.TLabel", str(p["muted"])),
         ):
-            self.style.configure(style_name, background=str(p["bg"]), foreground=color)
+            self.style.configure(style_name, background=str(p["card"]), foreground=color)
 
         # Стили UWP/WinUI-подобной оболочки: карточки, панель навигации, CommandBar.
         self.style.configure(
@@ -1125,19 +1186,19 @@ class VideoProcessorApp:
         )
         self.style.configure(
             "Header.TLabel", background=str(p["card"]), foreground=str(p["fg"]),
-            font=(font, 20, "bold"),
+            font=(font, FONT_REGISTRY["header"], "bold"),
         )
         self.style.configure(
             "Subtitle.TLabel", background=str(p["card"]), foreground=str(p["fg"]),
-            font=(font, 12, "bold"),
+            font=(font, FONT_REGISTRY["subtitle"], "bold"),
         )
         self.style.configure(
             "Caption.TLabel", background=str(p["elevated"]), foreground=str(p["muted"]),
-            font=(font, 8),
+            font=(font, FONT_REGISTRY["caption"]),
         )
         self.style.configure(
             "Value.TLabel", background=str(p["elevated"]), foreground=str(p["fg"]),
-            font=(font, 12, "bold"),
+            font=(font, FONT_REGISTRY["subtitle"], "bold"),
         )
         self.style.configure(
             "Info.Treeview", background=str(p["card"]), fieldbackground=str(p["card"]),
@@ -1164,7 +1225,7 @@ class VideoProcessorApp:
         )
         self.style.configure(
             "Nav.TButton", background=str(p["card"]), foreground=str(p["muted"]),
-            bordercolor=str(p["card"]), padding=(6, 8), font=(font, 15),
+            bordercolor=str(p["card"]), padding=(6, 8), font=(font, FONT_REGISTRY["nav"]),
             relief="flat", width=3,
         )
         self.style.map(
@@ -1175,12 +1236,12 @@ class VideoProcessorApp:
         # Активная вкладка — тёмная плашка; акцент вынесен отдельной полоской-индикатором.
         self.style.configure(
             "NavActive.TButton", background=str(p["card_alt"]), foreground=accent,
-            bordercolor=str(p["border"]), padding=(6, 8), font=(font, 15),
+            bordercolor=str(p["border"]), padding=(6, 8), font=(font, FONT_REGISTRY["nav"]),
             relief="flat", width=3,
         )
         self.style.configure(
             "Command.TButton", background=str(p["card"]), foreground=str(p["fg"]),
-            bordercolor=str(p["border"]), padding=(6, 8), font=(font, 9),
+            bordercolor=str(p["border"]), padding=(6, 8), font=(font, FONT_REGISTRY["body"]),
             relief="flat", width=9,
         )
         self.style.map(
@@ -1218,18 +1279,18 @@ class VideoProcessorApp:
             )
         if hasattr(self, "log_scroll"):
             self.log_scroll.configure(
-                bg=str(p["track"]), troughcolor=str(p["bg"]),
+                bg=str(p["track"]), troughcolor=str(p["card"]),
                 activebackground=str(p["card_alt"]), width=8,
                 relief="flat", borderwidth=0,
             )
         if hasattr(self, "settings_scroll"):
             self.settings_scroll.configure(
-                bg=str(p["track"]), troughcolor=str(p["bg"]),
+                bg=str(p["track"]), troughcolor=str(p["card"]),
                 activebackground=str(p["card_alt"]), width=14,
                 relief="flat", borderwidth=0,
             )
         if hasattr(self, "param_canvas"):
-            self.param_canvas.configure(bg=str(p["bg"]))
+            self.param_canvas.configure(bg=str(p["card"]))
         if hasattr(self, "scale_sharpen"):
             self.scale_sharpen.configure(
                 bg=str(p["bg"]), fg=str(p["fg"]), troughcolor=str(p["track"]),
@@ -1237,6 +1298,12 @@ class VideoProcessorApp:
             )
         if hasattr(self, "nav_indicator"):
             self.nav_indicator.configure(bg=str(p["accent"]))
+        if hasattr(self, "_refresh_dynamic_colors"):
+            self._refresh_dynamic_colors()
+        if hasattr(self, "_paint_accent_rail"):
+            self._paint_accent_rail()
+        if hasattr(self, "_sync_scrollregion"):
+            self._sync_scrollregion()
         self.apply_window_effects(bool(p["dark"]))
         # Тема применяется до отображения окна — повторяем после его создания.
         self.window.after(250, lambda: self.apply_window_effects(bool(p["dark"])))
@@ -1266,6 +1333,78 @@ class VideoProcessorApp:
     def on_theme_changed(self, _event: object = None) -> None:
         self.apply_fluent_theme()
         self.save_current_settings()
+
+    def _hex_to_rgb(self, value: str) -> tuple[int, int, int]:
+        value = str(value).lstrip("#")
+        return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
+
+    def _rgb_to_hex(self, rgb: tuple[int, int, int]) -> str:
+        return "#{:02X}{:02X}{:02X}".format(*rgb)
+
+    def _paint_accent_rail(self) -> None:
+        rail = getattr(self, "accent_rail", None)
+        if rail is None:
+            return
+        rail.delete("all")
+        palette = getattr(self, "colors", {})
+        accent = self._hex_to_rgb(str(palette.get("accent", "#00A8E8")))
+        base = self._hex_to_rgb(str(palette.get("card", "#181B20")))
+        width = max(1, rail.winfo_width())
+        steps = max(1, min(96, width // 4))
+        for i in range(steps):
+            color = self._rgb_to_hex(tuple(
+                round(accent[j] + (base[j] - accent[j]) * i / steps)
+                for j in range(3)
+            ))
+            rail.create_rectangle(
+                width * i / steps, 0, width * (i + 1) / steps + 1, 3,
+                fill=color, outline="",
+            )
+
+    def _sync_scrollregion(self) -> None:
+        canvas = getattr(self, "param_canvas", None)
+        if canvas is None:
+            return
+        try:
+            bbox = canvas.bbox("all")
+        except tk.TclError:
+            return
+        if bbox is not None:
+            canvas.configure(scrollregion=bbox)
+
+    def _on_settings_wheel(self, event) -> str:
+        canvas = getattr(self, "param_canvas", None)
+        if canvas is not None:
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        return "break"
+
+    def _bind_settings_wheel(self) -> None:
+        canvas = getattr(self, "param_canvas", None)
+        if canvas is None:
+            return
+
+        def bind_tree(widget) -> None:
+            widget.bind("<MouseWheel>", self._on_settings_wheel)
+            for child in widget.winfo_children():
+                bind_tree(child)
+
+        bind_tree(canvas)
+
+    def _refresh_dynamic_colors(self) -> None:
+        palette = getattr(self, "colors", {})
+        hint = getattr(self, "drop_hint", None)
+        if hint is not None:
+            for item in hint.find_all():
+                kind = hint.type(item)
+                if kind == "rectangle":
+                    hint.itemconfigure(item, outline=str(palette.get("accent")))
+                elif kind == "text":
+                    hint.itemconfigure(item, fill=str(palette.get("muted")))
+        for frame in getattr(self, "inspect_cards", []):
+            try:
+                frame.configure(bg=str(palette.get("card")))
+            except tk.TclError:
+                pass
 
     def command_button(self, parent, icon: str, label: str, command=None,
                        style: str = "Command.TButton", tooltip: str | None = None,
@@ -1302,6 +1441,7 @@ class VideoProcessorApp:
                 style=("NavActive.TButton" if name == page else "Nav.TButton")
             )
         if hasattr(self, "nav_indicator"):
+            self.window.update_idletasks()
             self.window.update_idletasks()
             button = self.nav_buttons[page][0]
             self.nav_indicator.place(
@@ -1429,7 +1569,7 @@ class VideoProcessorApp:
             self.nav_buttons[page] = (button, icon, label)
             ToolTip(button, label)
         ttk.Frame(self.nav_frame).pack(fill="both", expand=True)
-        ttk.Label(self.nav_frame, text="v3.0", font=(font, 8)).pack(pady=8)
+        ttk.Label(self.nav_frame, text="v3.0", font=(font, FONT_REGISTRY["caption"])).pack(pady=8)
 
         self.content = ttk.Frame(body, padding=(14, 12))
         self.content.grid(row=0, column=1, sticky="nsew")
@@ -1483,7 +1623,7 @@ class VideoProcessorApp:
         )
         hint_sub = self.drop_hint.create_text(
             130, 64, text="MP4, MKV, MOV — или нажмите, чтобы выбрать",
-            fill=str(p["muted"]), font=(font, 8),
+            fill=str(p["muted"]), font=(font, FONT_REGISTRY["caption"]),
         )
 
         def layout_drop_hint(_event=None) -> None:
@@ -1602,7 +1742,7 @@ class VideoProcessorApp:
         self.param_canvas.grid(row=0, column=0, sticky="nsew")
         settings_scroll = Scrollbar(
             spage, orient="vertical", command=self.param_canvas.yview,
-            width=14, bg=str(p["track"]), troughcolor=str(p["bg"]),
+            width=14, bg=str(p["track"]), troughcolor=str(p["card"]),
             activebackground=str(p["card_alt"]), relief="flat", borderwidth=0,
         )
         settings_scroll.grid(row=0, column=1, sticky="ns")
@@ -1622,7 +1762,7 @@ class VideoProcessorApp:
             "<Configure>",
             lambda e: (
                 self.param_canvas.itemconfigure(canvas_window, width=e.width),
-                self.param_canvas.configure(scrollregion=self.param_canvas.bbox("all")),
+                self._sync_scrollregion()
             ),
         )
 
@@ -1751,7 +1891,7 @@ class VideoProcessorApp:
             self.slider_frame.pack(fill="x", pady=3)
 
         # Явно пересчитываем область прокрутки и включаем колесо мыши.
-        self.param_canvas.configure(scrollregion=self.param_canvas.bbox("all"))
+        self._sync_scrollregion()
         self.param_canvas.bind(
             "<MouseWheel>",
             lambda e: self.param_canvas.yview_scroll(int(-1 * (e.delta / 120)), "units"),
@@ -1770,7 +1910,7 @@ class VideoProcessorApp:
         )
         self.log_scroll = Scrollbar(
             log_card, orient="vertical", command=self.log_text.yview,
-            bg=str(p["card"]), troughcolor=str(p["bg"]),
+            bg=str(p["card"]), troughcolor=str(p["card"]),
             activebackground=str(p["card_alt"]),
         )
         self.log_text.configure(yscrollcommand=self.log_scroll.set)
@@ -3123,6 +3263,10 @@ class UILogHandler(logging.Handler):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        pass
     root = Tk()
     app = VideoProcessorApp(root)
     root.mainloop()
