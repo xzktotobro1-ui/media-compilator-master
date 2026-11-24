@@ -25,3 +25,4 @@ venv/
 
 # Сгенерированный WiX-источник
 installer/Package.wxs
+*.part
