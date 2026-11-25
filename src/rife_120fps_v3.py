@@ -417,15 +417,21 @@ def hidden_startupinfo():
     if os.name == "nt":
         si = subprocess.STARTUPINFO()
         si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 0  # SW_HIDE
         return si
     return None
+
+
+def hidden_creationflags() -> int:
+    return getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
 
 
 def run_capture(command: list[str], timeout: int | None = 120) -> str:
     completed = subprocess.run(
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, encoding="utf-8", errors="replace",
-        startupinfo=hidden_startupinfo(), timeout=timeout, check=False,
+        startupinfo=hidden_startupinfo(), creationflags=hidden_creationflags(),
+        timeout=timeout, check=False,
     )
     if completed.returncode != 0:
         raise RuntimeError(
@@ -2642,6 +2648,7 @@ class VideoProcessorApp:
 
     def popen(self, command: list[str], **kwargs) -> subprocess.Popen:
         kwargs.setdefault("startupinfo", hidden_startupinfo())
+        kwargs.setdefault("creationflags", hidden_creationflags())
         kwargs.setdefault("stdin", subprocess.DEVNULL)
         process = subprocess.Popen(command, **kwargs)
         self.register_process(process)

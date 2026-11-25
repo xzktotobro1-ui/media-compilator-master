@@ -88,6 +88,17 @@ def parse_target_fps(text: str, source_fps: float) -> float:
     return float(fps)
 
 
+def hidden_run_kwargs() -> dict[str, Any]:
+    """Скрывать чёрные окна консоли при запуске ffmpeg/ffprobe/RIFE из GUI."""
+    if os.name != "nt":
+        return {}
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 0  # SW_HIDE
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    return {"startupinfo": startupinfo, "creationflags": flags}
+
+
 def run_command(argv: Sequence[Any], *, capture: bool = False,
                 check: bool = True, timeout: float | None = None,
                 ) -> subprocess.CompletedProcess[str]:
@@ -98,6 +109,7 @@ def run_command(argv: Sequence[Any], *, capture: bool = False,
         proc = subprocess.run(
             [str(a) for a in argv], capture_output=capture, text=True,
             encoding="utf-8", errors="replace", timeout=timeout, check=False,
+            **hidden_run_kwargs(),
         )
     except FileNotFoundError as exc:
         raise PipelineError(f"Не найден исполняемый файл: {argv[0]}") from exc

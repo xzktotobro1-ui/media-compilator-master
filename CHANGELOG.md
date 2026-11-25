@@ -19,6 +19,7 @@
 - `libsvtav1`: предел битрейта задаётся через `mbr=` внутри `-svtav1-params` (в CRF-режиме `-maxrate` игнорируется).
 - Временные каталоги чанков гарантированно удаляются через `TemporaryDirectory` и `try...finally`.
 - Windowed-сборка: корректная работа `--headless` при `sys.stdout=None`, отдельный crash-лог.
+- Все внешние процессы (ffmpeg, ffprobe, rife-ncnn-vulkan) запускаются с `CREATE_NO_WINDOW` / `SW_HIDE`: чёрные окна консоли больше не появляются поверх GUI.
 
 ### Проверено
 
