@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -121,6 +122,58 @@ def run_command(argv: Sequence[Any], *, capture: bool = False,
             f"Команда завершилась с кодом {proc.returncode}:\n{printable}\n{detail[-3000:]}"
         )
     return proc
+
+
+def run_ffmpeg_progress(argv: Sequence[Any], duration: float, progress: "Progress",
+                        timeout: float | None = None) -> None:
+    """Запуск ffmpeg с -progress pipe:1 и передача процентов в GUI/CLI."""
+    cmd = [str(a) for a in argv]
+    printable = " ".join(cmd)
+    LOG.debug("CMD: %s", printable)
+    try:
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", errors="replace", **hidden_run_kwargs(),
+        )
+    except FileNotFoundError as exc:
+        raise PipelineError(f"Не найден исполняемый файл: {argv[0]}") from exc
+
+    deadline = None if timeout is None else time.monotonic() + timeout
+    last_pct = -1.0
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            line = line.strip()
+            seconds = None
+            if line.startswith("out_time_us="):
+                try:
+                    seconds = float(line.split("=", 1)[1]) / 1_000_000.0
+                except ValueError:
+                    seconds = None
+            elif line.startswith("out_time="):
+                try:
+                    parts = line.split("=", 1)[1].split(":")
+                    seconds = (float(parts[0]) * 3600.0 + float(parts[1]) * 60.0
+                               + float(parts[2]))
+                except (ValueError, IndexError):
+                    seconds = None
+            if seconds is not None and duration > 0:
+                pct = min(100.0, max(0.0, seconds / duration * 100.0))
+                if pct - last_pct >= 0.5 or pct >= 100.0:
+                    progress.update(int(pct), 100, f"Кодирование {pct:.0f}%")
+                    last_pct = pct
+            if deadline is not None and time.monotonic() > deadline:
+                raise PipelineError(f"Превышен таймаут команды: {printable}")
+        proc.wait()
+    except BaseException:
+        proc.kill()
+        proc.wait()
+        raise
+    if proc.returncode != 0:
+        detail = (proc.stderr.read() if proc.stderr else "").strip()
+        raise PipelineError(
+            f"Команда завершилась с кодом {proc.returncode}:\n{printable}\n{detail[-3000:]}"
+        )
 
 
 def iter_install_dirs(script_dir: Path) -> list[Path]:
@@ -420,10 +473,12 @@ class EncoderChoice:
 
 CODEC_CANDIDATES: dict[str, list[tuple[str, str]]] = {
     "auto": [
+        # Сначала аппаратные энкодеры: GPU должна использоваться всегда, когда доступна.
         ("av1_nvenc", "nvidia"), ("av1_qsv", "intel"), ("av1_amf", "amd"),
-        ("libsvtav1", "software"), ("librav1e", "software"), ("libaom-av1", "software"),
         ("hevc_nvenc", "nvidia"), ("hevc_qsv", "intel"), ("hevc_amf", "amd"),
-        ("libx265", "software"), ("h264_nvenc", "nvidia"), ("libx264", "software"),
+        ("h264_nvenc", "nvidia"), ("h264_qsv", "intel"), ("h264_amf", "amd"),
+        ("libsvtav1", "software"), ("librav1e", "software"), ("libaom-av1", "software"),
+        ("libx265", "software"), ("libx264", "software"),
     ],
     "av1": [
         ("av1_nvenc", "nvidia"), ("av1_qsv", "intel"), ("av1_amf", "amd"),
@@ -456,7 +511,8 @@ def encoder_works(ffmpeg: Path, name: str, pix_fmt: str) -> bool:
     """Мини-тест: отсекает заявленные, но нефункциональные энкодеры."""
     cmd = [
         ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi",
-        "-i", "color=c=black:s=64x64:r=1", "-frames:v", "2",
+        # NVENC rejects tiny frames; 256x144 is the smallest safe probe size.
+        "-i", "color=c=black:s=256x144:r=1", "-frames:v", "2",
         "-c:v", name, "-pix_fmt", pix_fmt, "-f", "null", "-",
     ]
     return run_command(cmd, capture=True, check=False, timeout=45).returncode == 0
@@ -877,9 +933,11 @@ def process_downscale(tools: Tools, info: MediaInfo, output: Path, opts: argpars
             tools.ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
             "-i", info.path, "-map", "0:v:0", *filter_arg(filters),
             "-fps_mode", "cfr", "-c:v", choice.name, *choice.options,
-            "-pix_fmt", choice.pix_fmt, "-an", "-f", "mp4", video_only,
+            "-pix_fmt", choice.pix_fmt, "-an",
+            "-progress", "pipe:1", "-nostats", "-f", "mp4", video_only,
         ]
-        run_command(cmd, timeout=max(900, int(info.duration * 4) + 180))
+        run_ffmpeg_progress(cmd, info.duration, progress,
+                            timeout=max(900, int(info.duration * 4) + 180))
         progress.update(100, 100, "Кодирование завершено")
         mux_audio(tools.ffmpeg, video_only, info.path, info, output,
                   audio_codec=opts.audio_codec, audio_bitrate=opts.audio_bitrate)

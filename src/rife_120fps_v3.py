@@ -879,7 +879,7 @@ class VideoProcessorApp:
         # UI-переменные (инициализируются из настроек)
         self.status_msg = StringVar(value="Инициализация...")
         self.progress_percent = StringVar(value="0.0%")
-        self.speed_fps = StringVar(value="FPS: 0")
+        self.speed_fps = StringVar(value="Скорость: —")
         self.eta_time = StringVar(value="Осталось: --:--:--")
         self.stage_text = StringVar(value="Стадия: ожидание")
         self.tensor_test_status = StringVar(value="TensorRT: не проверен")
@@ -2831,7 +2831,7 @@ class VideoProcessorApp:
                     if hasattr(self, "file_progress"):
                         self.file_progress.configure(value=max(0, min(100, pct)))
                     self.progress_percent.set(f"{pct:.1f}%")
-                    self.speed_fps.set(f"FPS: {fps:.1f}")
+                    self.speed_fps.set(f"Скорость: {fps:.1f}x")
                     self.eta_time.set(f"Осталось: {eta}")
                 elif kind == "v35_progress":
                     _, pct, description = event
@@ -2866,7 +2866,7 @@ class VideoProcessorApp:
                     self.btn_stop.configure(state="disabled")
                     self.progress_bar.configure(value=0)
                     self.stage_text.set("Стадия: завершено")
-                    self.speed_fps.set("FPS: 0")
+                    self.speed_fps.set("Скорость: —")
                     self.eta_time.set("Осталось: --:--:--")
                     self.progress_percent.set("0.0%")
                     self.btn_retry.configure(
