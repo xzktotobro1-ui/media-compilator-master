@@ -19,6 +19,7 @@ hiddenimports = [
     "tkinter.scrolledtext",
     "pynvml",
     "tensorrt",
+    "media_engine_v35",
 ]
 try:
     hiddenimports += collect_submodules("tensorrt")
@@ -27,7 +28,7 @@ except Exception:
 
 a = Analysis(
     ["rife_120fps_v3.py"],
-    pathex=[r"C:\TensorRT-11.4.0.106"],
+    pathex=[],
     binaries=[],
     datas=[],
     hiddenimports=hiddenimports,

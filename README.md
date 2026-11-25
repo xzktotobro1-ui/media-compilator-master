@@ -40,23 +40,31 @@
 - **Интерфейс** в стиле Windows 11 / Fluent: тёмная палитра AI Dark, светлая тема и тема «Как в Windows».
 - **Никакого Python** на целевом компьютере — PyInstaller-сборка включает interpreter, Tkinter и все модули.
 
-## v3.5 — новый CLI-конвейер
+## v3.5 — GUI-программа с новым движком
 
-В репозитории доступен production-grade CLI `src/rtx_media_master_v35.py`:
-RIFE ncnn-vulkan с чанками и сцен-резами, VFR→CFR, двусторонний FPS,
-автовыбор AV1/HEVC/VVC/H.264 с 10-битным кодированием и опциональный
-`--enhance` (deinterlace, цвет, лёгкое шумоподавление, CAS).
+Основной продукт v3.5 — полноценное оконное приложение `RTX_Media_Master_v3.exe`
+и MSI-установщик. В интерфейс встроен тот же production-grade пайплайн, что и в
+CLI-бэкенде: диагностика FFmpeg/FFprobe/RIFE/Vulkan, поиск модели `rife-v4.6`,
+нормализация VFR→CFR, перекрывающиеся чанки с scene-cut `scdet`, двусторонний FPS,
+современные кодеки с 10-bit и `--enhance`.
+
+### Настройки движка в GUI
+
+- **Кодек**: `auto`, `av1`, `hevc`, `vvc`, `h264` (с аппаратным фолбэком).
+- **Пресет**: `compact`, `balanced`, `quality`; опциональные `--crf`/`--cq` доступны в бэкенде.
+- **GPU**: индекс Vulkan-устройства; **Enhance**: bwdif + zscale + hqdn3d + CAS.
+- **Целевой FPS**: как явное значение, так и множитель вида `2x`; повышение через RIFE, понижение через `fps`.
+- В строке состояния отображается прогресс и итоговая статистика «до/после» по размеру файла.
+
+### Headless-бэкенд
+
+CLI сохранён только как внутренняя опция для автоматизации:
 
 ```powershell
-python src/rtx_media_master_v35.py --input input.mp4 --output output.mp4 --fps 120 --codec auto --preset balanced --enhance
-python src/rtx_media_master_v35.py --input input.mp4 --output output.mp4 --fps 2x --codec hevc
-python src/rtx_media_master_v35.py --input input.mp4 --output output.mp4 --fps 24 --codec vvc --preset compact
+RTX_Media_Master_v3.exe --headless --input input.mp4 --output output.mp4 --fps 120 --codec auto --preset balanced --enhance
 ```
 
-Скрипт сам находит `ffmpeg`, `ffprobe`, `rife-ncnn-vulkan.exe`, лучшую модель
-`rife-v4.6` и Vulkan-GPU; при отсутствии компонентов завершается с понятной
-диагностикой. GUI/MSI-сборка v3.1.1 остаётся в `src/rife_120fps_v3.py`;
-релиз v3.5 поставляется как CLI-скрипт и ZIP с ним.
+Полный список флагов движка доступен в `src/media_engine_v35.py` и через `--help` CLI-версии.
 
 ## Установка
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-RTX Media Master v3.1.1 — исправленная и улучшенная версия.
+RTX Media Master v3.5 — GUI + production-grade конвейер RIFE/FFmpeg.
 Windows GUI для пакетной обработки видео через FFmpeg и RIFE NCNN Vulkan.
 
 Улучшения v3:
@@ -18,6 +18,7 @@ Windows GUI для пакетной обработки видео через FFm
 
 from __future__ import annotations
 
+import argparse
 import ctypes
 import json
 import logging
@@ -44,12 +45,17 @@ from tkinter import (
 )
 from typing import Callable, Iterator
 
+try:
+    import media_engine_v35 as engine  # встроенный конвейер v3.5
+except Exception:  # pragma: no cover - диагностика ниже
+    engine = None  # type: ignore[assignment]
+
 # ---------------------------------------------------------------------------
 # Константы и пути
 # ---------------------------------------------------------------------------
 
 APP_NAME = "RTX Media Master"
-APP_VERSION = "v3.1.1"
+APP_VERSION = "v3.5"
 
 # Сквозной прогресс по стадиям RIFE-конвейера (проценты общего прогресса)
 STAGE_EXTRACT_SPAN = (0.0, 12.0)
@@ -181,6 +187,8 @@ NVENC_PRESET_CHOICES = [
 ]
 AUDIO_MODE_CHOICES = ["copy", "aac"]
 AUDIO_BITRATE_CHOICES = ["128k", "160k", "192k", "256k", "320k"]
+ENGINE_CODEC_CHOICES = ["auto", "av1", "hevc", "vvc", "h264"]
+ENGINE_PRESET_CHOICES = ["compact", "balanced", "quality"]
 QUALITY_CHOICES = [12, 14, 16, 18, 20, 22, 24, 26, 28]
 
 # Профили «размер ↔ качество». Значения: (кодек, NVENC preset, CQ/CRF, лимит битрейта).
@@ -275,6 +283,10 @@ class JobConfig:
     sharpen_amount: float
     quality: int = 21
     gpu_index: int = 0
+    engine_codec: str = "auto"
+    engine_preset: str = "balanced"
+    engine_enhance: bool = False
+    engine_gpu: int = 0
 
 
 @dataclass
@@ -296,6 +308,10 @@ class AppSettings:
     profile: str = PROFILE_BALANCED
     theme: str = THEME_CREATIVE
     gpu_index: int = 0
+    engine_codec: str = "auto"
+    engine_preset: str = "balanced"
+    engine_enhance: bool = False
+    engine_gpu: int = 0
     geometry: str = "1020x760"
 
     @classmethod
@@ -338,6 +354,14 @@ class AppSettings:
             )
             result.quality = safe_int(data.get("quality"), 21, 1, 51)
             result.gpu_index = safe_int(data.get("gpu_index"), 0, 0, 15)
+            result.engine_codec = as_choice(
+                "engine_codec", result.engine_codec, ENGINE_CODEC_CHOICES
+            )
+            result.engine_preset = as_choice(
+                "engine_preset", result.engine_preset, ENGINE_PRESET_CHOICES
+            )
+            result.engine_enhance = bool(data.get("engine_enhance", False))
+            result.engine_gpu = safe_int(data.get("engine_gpu"), 0, 0, 15)
             geometry = data.get("geometry", result.geometry)
             result.geometry = (
                 geometry
@@ -855,6 +879,7 @@ class VideoProcessorApp:
         self.tensor_test_status = StringVar(value="TensorRT: не проверен")
         self.vram_meter_text = StringVar(value="Оценка видеопамяти: —")
         self.gpu_telemetry = StringVar(value="GPU: — · VRAM: —")
+        self.size_stats = StringVar(value="Размер: —")
 
         self.processing_mode = StringVar(value=self.settings.processing_mode)
         self.target_fps = IntVar(value=self.settings.target_fps)
@@ -872,6 +897,10 @@ class VideoProcessorApp:
         self.enable_denoise = BooleanVar(value=self.settings.enable_denoise)
         self.enable_sharpen = BooleanVar(value=self.settings.enable_sharpen)
         self.sharpen_amount = DoubleVar(value=self.settings.sharpen_amount)
+        self.engine_codec = StringVar(value=self.settings.engine_codec)
+        self.engine_preset = StringVar(value=self.settings.engine_preset)
+        self.engine_enhance = BooleanVar(value=self.settings.engine_enhance)
+        self.engine_gpu = IntVar(value=self.settings.engine_gpu)
 
         self.detect_hardware_capabilities()
         self.apply_fluent_theme()
@@ -1875,6 +1904,35 @@ class VideoProcessorApp:
             grid, "Меньше CQ/CRF = лучше качество и больше размер файла."
         )
 
+        engine_card = ttk.LabelFrame(
+            controls, text=" Движок v3.5 (RIFE + современные кодеки) ", padding=12,
+            style="Card.TLabelframe",
+        )
+        engine_card.pack(fill="x", pady=(0, 10))
+        engine_grid = ttk.Frame(engine_card)
+        engine_grid.pack(fill="x")
+        engine_rows = (
+            ("Кодек v3.5:", self.engine_codec, ENGINE_CODEC_CHOICES, 12),
+            ("Пресет v3.5:", self.engine_preset, ENGINE_PRESET_CHOICES, 12),
+            ("GPU Vulkan (индекс):", self.engine_gpu, list(range(0, 8)), 12),
+        )
+        for row, (label, variable, values, width) in enumerate(engine_rows):
+            ttk.Label(engine_grid, text=label).grid(row=row, column=0, sticky="w", pady=4)
+            box = ttk.Combobox(
+                engine_grid, textvariable=variable, values=values,
+                width=width, state="readonly",
+            )
+            box.grid(row=row, column=1, sticky="w", padx=8)
+        ttk.Checkbutton(
+            engine_card, text="Enhance (denoise + CAS, 10-bit)",
+            variable=self.engine_enhance, command=self.on_settings_changed,
+        ).pack(anchor="w", pady=(6, 0))
+        ToolTip(engine_card, (
+            "Основной конвейер программы. Использует RIFE v4.6 с перекрытием чанков\n"
+            "и scene-cut, точный A/V sync и 10-bit AV1/HEVC/VVC/H.264.\n"
+            "CLI-режим доступен только как внутренний бэкенд: --headless."
+        ))
+
         audio_card = ttk.LabelFrame(
             controls, text=" Аудио ", padding=12, style="Card.TLabelframe"
         )
@@ -1996,6 +2054,10 @@ class VideoProcessorApp:
         ttk.Label(
             info, textvariable=self.progress_percent, style="Good.TLabel"
         ).grid(row=0, column=9, sticky="e")
+        vsep(10)
+        ttk.Label(
+            info, textvariable=self.size_stats, style="Info.TLabel"
+        ).grid(row=0, column=11, sticky="w")
 
         self.refresh_listbox()
         self.refresh_system_info()
@@ -2054,6 +2116,10 @@ class VideoProcessorApp:
         s.enable_denoise = bool(self.enable_denoise.get())
         s.enable_sharpen = bool(self.enable_sharpen.get())
         s.sharpen_amount = safe_float(self.sharpen_amount.get(), 0.6, 0.0, 1.0)
+        s.engine_codec = self.engine_codec.get()
+        s.engine_preset = self.engine_preset.get()
+        s.engine_enhance = bool(self.engine_enhance.get())
+        s.engine_gpu = safe_int(self.engine_gpu.get(), 0, 0, 15)
         # Не сохраняем «1x1+0+0», которое Tk отдаёт до первого отображения окна.
         geometry = self.window.geometry()
         match = re.match(r"(\d+)x(\d+)", geometry)
@@ -2548,6 +2614,10 @@ class VideoProcessorApp:
             sharpen_amount=safe_float(self.sharpen_amount.get(), 0.6, 0.0, 1.0),
             quality=int(self.quality.get()),
             gpu_index=safe_int(self.settings.gpu_index, 0, 0, 15),
+            engine_codec=self.engine_codec.get(),
+            engine_preset=self.engine_preset.get(),
+            engine_enhance=bool(self.engine_enhance.get()),
+            engine_gpu=safe_int(self.engine_gpu.get(), 0, 0, 15),
         )
 
     def prevent_windows_sleep(self, enable: bool = True) -> None:
@@ -2756,6 +2826,19 @@ class VideoProcessorApp:
                     self.progress_percent.set(f"{pct:.1f}%")
                     self.speed_fps.set(f"FPS: {fps:.1f}")
                     self.eta_time.set(f"Осталось: {eta}")
+                elif kind == "v35_progress":
+                    _, pct, description = event
+                    self.progress_bar.configure(value=max(0, min(100, pct)))
+                    if hasattr(self, "file_progress"):
+                        self.file_progress.configure(value=max(0, min(100, pct)))
+                    self.progress_percent.set(f"{pct:.1f}%")
+                    if description:
+                        self.stage_text.set(f"Стадия: {description}")
+                elif kind == "v35_stats":
+                    _, stats = event
+                    self.size_stats.set(
+                        f"Размер: {stats.get('size', '—')} · {stats.get('size_ratio', '—')}"
+                    )
                 elif kind == "tensor_test":
                     _, success, message = event
                     self.tensor_test_status.set(message)
@@ -3178,8 +3261,12 @@ class VideoProcessorApp:
                         meta = probe_meta(self.ffprobe_path(), input_file)
                         self.metadata_cache[input_file] = meta
                     output_file = self.make_output_path(input_file, cfg.target_fps)
-                    if cfg.mode == "rife_tensorrt":
-                        self.run_rife(input_file, output_file, meta, cfg)
+                    if cfg.mode == "rife_tensorrt" and engine is not None:
+                        self.run_v35_pipeline(input_file, output_file, cfg)
+                    elif cfg.mode == "rife_tensorrt":
+                        raise RuntimeError(
+                            "Движок v3.5 (media_engine_v35.py) не найден в сборке"
+                        )
                     else:
                         self.run_ffmpeg_mode(input_file, output_file, meta, cfg)
                     if input_file in self.failed_files:
@@ -3216,6 +3303,42 @@ class VideoProcessorApp:
             # в главном потоке. Worker публикует событие, сохраняет UI-поток.
             self.ui_events.put(("save_settings",))
             self.ui_events.put(("finished",))
+
+    # --------------------------- v3.5 engine ------------------------------
+
+    def run_v35_pipeline(self, input_file: str, output_file: Path,
+                         cfg: JobConfig) -> None:
+        """Основной путь обработки: встроенный конвейер v3.5."""
+        if engine is None:
+            raise RuntimeError("Движок v3.5 недоступен")
+        self.set_stage("Стадия: инициализация конвейера v3.5")
+        self.set_status("Диагностика FFmpeg / RIFE / Vulkan...")
+        cfg35 = engine.PipelineConfig(
+            input=Path(input_file),
+            output=Path(output_file),
+            fps=str(cfg.target_fps),
+            codec=cfg.engine_codec,
+            preset=cfg.engine_preset,
+            enhance=bool(cfg.engine_enhance or cfg.denoise or cfg.sharpen),
+            gpu=cfg.engine_gpu,
+            audio_codec=cfg.audio_mode,
+            audio_bitrate=cfg.audio_bitrate,
+            ffmpeg=str(self.ffmpeg_path()),
+            ffprobe=str(self.ffprobe_path()),
+            rife=str(self.rife_path()),
+            models_dir=str(self.models_path()),
+        )
+        stats = engine.run_pipeline(
+            cfg35, progress=GuiProgress(self), cancel_event=self.cancel_event
+        )
+        self.ui_events.put(("v35_stats", stats))
+        self.ui_events.put(("stage", "Стадия: завершено"))
+        self.ui_events.put((
+            "status",
+            f"Готово: {Path(output_file).name} · "
+            f"{stats.get('size', '—')} · {stats.get('size_ratio', '—')}",
+        ))
+        logging.info("v3.5 stats: %s", stats)
 
     # --------------------------- diagnostics ------------------------------
 
@@ -3287,6 +3410,29 @@ class VideoProcessorApp:
 
 
 # ---------------------------------------------------------------------------
+# GuiProgress — пересылает прогресс движка v3.5 в UI
+# ---------------------------------------------------------------------------
+
+class GuiProgress:
+    """Минимальный интерфейс Progress, совместимый с media_engine_v35."""
+
+    def __init__(self, app: "VideoProcessorApp") -> None:
+        self.app = app
+
+    def start(self, description: str, total: float) -> None:
+        self.app.ui_events.put(("stage", f"Стадия: {description}"))
+        self.app.ui_events.put(("progress", 0.0, 0.0, "--:--:--"))
+
+    def update(self, value: float, total: float,
+               description: str | None = None) -> None:
+        pct = 100.0 * value / max(1.0, total)
+        self.app.ui_events.put(("v35_progress", pct, description or ""))
+
+    def finish(self) -> None:
+        self.app.ui_events.put(("v35_progress", 100.0, ""))
+
+
+# ---------------------------------------------------------------------------
 # UILogHandler — пересылает логи в UI через очередь событий
 # ---------------------------------------------------------------------------
 
@@ -3304,10 +3450,76 @@ class UILogHandler(logging.Handler):
 
 
 # ---------------------------------------------------------------------------
+# CLI-бэкенд (внутренний режим, GUI остаётся основным продуктом)
+# ---------------------------------------------------------------------------
+
+def run_headless(argv: list[str] | None = None) -> int:
+    # В windowed-сборке PyInstaller sys.stdout/stderr равны None.
+    if sys.stdout is None or sys.stderr is None:
+        devnull = open(os.devnull, "w")
+        if sys.stdout is None:
+            sys.stdout = devnull
+        if sys.stderr is None:
+            sys.stderr = devnull
+    parser = argparse.ArgumentParser(
+        prog="RTX_Media_Master_v3.exe --headless",
+        description="Внутренний CLI-бэкенд движка v3.5.",
+    )
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--output")
+    parser.add_argument("--fps", default="60")
+    parser.add_argument("--codec", default="auto", choices=ENGINE_CODEC_CHOICES)
+    parser.add_argument("--preset", default="balanced", choices=ENGINE_PRESET_CHOICES)
+    parser.add_argument("--enhance", action="store_true")
+    parser.add_argument("--gpu", type=int, default=0)
+    opts = parser.parse_args(argv)
+    if engine is None:
+        print("Движок v3.5 недоступен", file=sys.stderr)
+        return 3
+    source = Path(opts.input).expanduser().resolve()
+    output = Path(opts.output or source.with_name(
+        f"{source.stem}_{str(opts.fps).replace('x', 'mul')}fps_master.mp4"
+    )).expanduser().resolve()
+    cfg = engine.PipelineConfig(
+        input=source, output=output, fps=opts.fps, codec=opts.codec,
+        preset=opts.preset, enhance=opts.enhance, gpu=opts.gpu,
+        audio_codec="copy", audio_bitrate="192k",
+    )
+    try:
+        stats = engine.run_pipeline(cfg)
+        for key, value in stats.items():
+            print(f"{key:18s}: {value}")
+        return 0
+    except Exception as exc:
+        try:
+            import traceback
+            crash = Path(os.environ.get("TEMP", ".")) / "rtx_headless_crash.txt"
+            crash.write_text(traceback.format_exc(), encoding="utf-8")
+        except Exception:
+            pass
+        print(f"Ошибка: {exc}", file=sys.stderr)
+        return 2
+
+
+# ---------------------------------------------------------------------------
 # Точка входа
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    if "--headless" in sys.argv[1:]:
+        try:
+            index = sys.argv.index("--headless")
+            sys.exit(run_headless(sys.argv[index + 1:]))
+        except SystemExit:
+            raise
+        except BaseException:
+            try:
+                import traceback
+                crash = Path(os.environ.get("TEMP", ".")) / "rtx_headless_crash.txt"
+                crash.write_text(traceback.format_exc(), encoding="utf-8")
+            except Exception:
+                pass
+            raise
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
