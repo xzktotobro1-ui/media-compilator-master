@@ -40,6 +40,24 @@
 - **Интерфейс** в стиле Windows 11 / Fluent: тёмная палитра AI Dark, светлая тема и тема «Как в Windows».
 - **Никакого Python** на целевом компьютере — PyInstaller-сборка включает interpreter, Tkinter и все модули.
 
+## v3.5 — новый CLI-конвейер
+
+В репозитории доступен production-grade CLI `src/rtx_media_master_v35.py`:
+RIFE ncnn-vulkan с чанками и сцен-резами, VFR→CFR, двусторонний FPS,
+автовыбор AV1/HEVC/VVC/H.264 с 10-битным кодированием и опциональный
+`--enhance` (deinterlace, цвет, лёгкое шумоподавление, CAS).
+
+```powershell
+python src/rtx_media_master_v35.py --input input.mp4 --output output.mp4 --fps 120 --codec auto --preset balanced --enhance
+python src/rtx_media_master_v35.py --input input.mp4 --output output.mp4 --fps 2x --codec hevc
+python src/rtx_media_master_v35.py --input input.mp4 --output output.mp4 --fps 24 --codec vvc --preset compact
+```
+
+Скрипт сам находит `ffmpeg`, `ffprobe`, `rife-ncnn-vulkan.exe`, лучшую модель
+`rife-v4.6` и Vulkan-GPU; при отсутствии компонентов завершается с понятной
+диагностикой. GUI/MSI-сборка v3.1.1 остаётся в `src/rife_120fps_v3.py`;
+релиз v3.5 поставляется как CLI-скрипт и ZIP с ним.
+
 ## Установка
 
 1. Скачайте `RTX_Media_Master_v3.msi` из [последнего релиза](https://github.com/xzktotobro1-ui/media-compilator-master/releases/latest).
