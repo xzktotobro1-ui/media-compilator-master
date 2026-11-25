@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-RTX Media Master v3.0 — исправленная и улучшенная версия.
+RTX Media Master v3.1.1 — исправленная и улучшенная версия.
 Windows GUI для пакетной обработки видео через FFmpeg и RIFE NCNN Vulkan.
 
 Улучшения v3:
@@ -33,7 +33,6 @@ import threading
 import time
 import urllib.request
 import zipfile
-import ctypes
 import tkinter as tk
 from contextlib import contextmanager
 from dataclasses import dataclass, field, asdict
@@ -50,7 +49,7 @@ from typing import Callable, Iterator
 # ---------------------------------------------------------------------------
 
 APP_NAME = "RTX Media Master"
-APP_VERSION = "v3.1.0"
+APP_VERSION = "v3.1.1"
 
 # Сквозной прогресс по стадиям RIFE-конвейера (проценты общего прогресса)
 STAGE_EXTRACT_SPAN = (0.0, 12.0)
@@ -115,10 +114,43 @@ def application_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
+def user_data_dir() -> Path:
+    """Доступный для записи каталог пользовательских данных.
+
+    Program Files доступен только для чтения: создание session_runtime.log там
+    приводит к PermissionError [Errno 13] при запуске MSI-версии без прав admin.
+    """
+    candidates: list[Path] = []
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        candidates.append(Path(appdata) / "RTX Media Master")
+    candidates.append(Path.home() / ".rtx_media_master")
+    candidates.append(Path(tempfile.gettempdir()) / "RTX Media Master")
+    for path in candidates:
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            probe = path / ".write_probe"
+            probe.write_text("", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            return path
+        except OSError:
+            continue
+    return candidates[-1]
+
+
 BASE_DIR = application_dir()
-LOG_PATH = BASE_DIR / "session_runtime.log"
-SETTINGS_PATH = BASE_DIR / "settings.json"
-CRASH_LOG_PATH = BASE_DIR / "crash_log.txt"
+DATA_DIR = user_data_dir()
+LOG_PATH = DATA_DIR / "session_runtime.log"
+SETTINGS_PATH = DATA_DIR / "settings.json"
+CRASH_LOG_PATH = DATA_DIR / "crash_log.txt"
+
+# Миграция настроек из прежнего расположения (в каталоге программы).
+_LEGACY_SETTINGS = BASE_DIR / "settings.json"
+if not SETTINGS_PATH.exists() and _LEGACY_SETTINGS.is_file():
+    try:
+        shutil.copy2(_LEGACY_SETTINGS, SETTINGS_PATH)
+    except OSError:
+        pass
 
 FFMPEG_NAME = "ffmpeg.exe"
 FFPROBE_NAME = "ffprobe.exe"
@@ -209,13 +241,16 @@ except Exception as exc:  # pragma: no cover
 # Логирование (в файл + консоль). UI-лог подключается отдельно через очередь.
 # ---------------------------------------------------------------------------
 
+_log_handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+try:
+    _log_handlers.append(logging.FileHandler(LOG_PATH, encoding="utf-8"))
+except OSError as exc:  # программа должна запускаться даже без доступа к логу
+    print(f"Файловый лог недоступен ({LOG_PATH}): {exc}", file=sys.stderr)
+
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] %(levelname)s [%(threadName)s] %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler(LOG_PATH, encoding="utf-8"),
-    ],
+    handlers=_log_handlers,
 )
 
 
@@ -1569,7 +1604,7 @@ class VideoProcessorApp:
             self.nav_buttons[page] = (button, icon, label)
             ToolTip(button, label)
         ttk.Frame(self.nav_frame).pack(fill="both", expand=True)
-        ttk.Label(self.nav_frame, text="v3.0", font=(font, FONT_REGISTRY["caption"])).pack(pady=8)
+        ttk.Label(self.nav_frame, text=APP_VERSION, font=(font, FONT_REGISTRY["caption"])).pack(pady=8)
 
         self.content = ttk.Frame(body, padding=(14, 12))
         self.content.grid(row=0, column=1, sticky="nsew")
@@ -2040,17 +2075,27 @@ class VideoProcessorApp:
 
     # --------------------------- dependency setup -------------------------
 
+    def _tool_path(self, name: str) -> Path:
+        """Использует установленный бинарник, иначе доступную для записи копию."""
+        installed = BASE_DIR / name
+        if installed.exists():
+            return installed
+        return DATA_DIR / name
+
     def ffmpeg_path(self) -> Path:
-        return BASE_DIR / FFMPEG_NAME
+        return self._tool_path(FFMPEG_NAME)
 
     def ffprobe_path(self) -> Path:
-        return BASE_DIR / FFPROBE_NAME
+        return self._tool_path(FFPROBE_NAME)
 
     def rife_path(self) -> Path:
-        return BASE_DIR / RIFE_NAME
+        return self._tool_path(RIFE_NAME)
 
     def models_path(self) -> Path:
-        return BASE_DIR / MODELS_DIR_NAME
+        installed = BASE_DIR / MODELS_DIR_NAME
+        if installed.is_dir() and any(installed.rglob("*.param")):
+            return installed
+        return DATA_DIR / MODELS_DIR_NAME
 
     def set_status(self, message: str) -> None:
         self.ui_events.put(("status", message))
@@ -2183,7 +2228,7 @@ class VideoProcessorApp:
             try:
                 if not self.ffmpeg_path().exists() or not self.ffprobe_path().exists():
                     self.set_status("Скачивание FFmpeg...")
-                    archive = BASE_DIR / "ffmpeg_download.zip"
+                    archive = DATA_DIR / "ffmpeg_download.zip"
                     download(FFMPEG_URL, archive, "FFmpeg")
                     safe_extract_selected(archive, {
                         "bin/ffmpeg.exe": self.ffmpeg_path(),
@@ -2198,7 +2243,7 @@ class VideoProcessorApp:
                     or not self.has_rife_model()
                 ):
                     self.set_status("Скачивание RIFE NCNN Vulkan...")
-                    archive = BASE_DIR / "rife_download.zip"
+                    archive = DATA_DIR / "rife_download.zip"
                     download(RIFE_URL, archive, "RIFE")
                     self.models_path().mkdir(parents=True, exist_ok=True)
                     with zipfile.ZipFile(archive) as zf:
@@ -2209,7 +2254,7 @@ class VideoProcessorApp:
                                 continue
                             base = Path(name).name.lower()
                             if base in {RIFE_NAME, "vcomp140.dll"}:
-                                dest = BASE_DIR / Path(name).name
+                                dest = DATA_DIR / Path(name).name
                             elif len(parts) >= 2 and (
                                 parts[0].lower() == "models"
                                 or parts[0].lower().startswith("rife")
