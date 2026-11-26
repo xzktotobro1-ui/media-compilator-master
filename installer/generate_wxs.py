@@ -86,6 +86,10 @@ def main() -> None:
     ET.SubElement(package, q("Property"), {
         "Id": "WixUIInstallDir", "Value": r"C:\Program Files\RTX Media Master",
     })
+    ET.SubElement(package, q("WixVariable"), {
+        "Id": "WixUILicenseRtf",
+        "Value": str(ROOT / "installer" / "LICENSE.rtf"),
+    })
 
     ui = ET.SubElement(package, q("UI"))
     ET.SubElement(ui, qu("WixUI"), {

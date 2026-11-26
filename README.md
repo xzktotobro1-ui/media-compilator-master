@@ -118,6 +118,10 @@ wix build installer/Package.wxs -o RTX_Media_Master_v3.msi
 
 MSI v3.5 предлагает выбор папки установки и весит ~539 МБ вместо ~584 МБ. Полный FFmpeg с AV1/VVC включён; `ffprobe` используется облегчённой сборки.
 
+## Лицензионное соглашение установщика
+
+MSI-установщик показывает настоящий MIT License (Copyright (c) 2026 x_kitaikuyo_x) вместо стандартного текста-заглушки WiX. Выбор папки установки сохранён.
+
 ## Лицензии
 
 Код приложения — [MIT](LICENSE). Сторонние компоненты и их лицензии (FFmpeg, libx264, libx265, libsvtav1, RIFE, ncnn, Python, Tcl/Tk, PyInstaller, TensorRT, WiX) перечислены в [NOTICE.md](NOTICE.md). Бинарные зависимости не хранятся в репозитории.
