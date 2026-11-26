@@ -18,7 +18,9 @@ OUT = ROOT / "installer" / "Package.wxs"
 ICON = ROOT / "installer" / "app_icon.ico"
 
 WIX_NS = "http://wixtoolset.org/schemas/v4/wxs"
+WIX_UI_NS = "http://wixtoolset.org/schemas/v4/wxs/ui"
 ET.register_namespace("", WIX_NS)
+ET.register_namespace("ui", WIX_UI_NS)
 
 PRODUCT_NAME = "RTX Media Master"
 MANUFACTURER = "x_kitaikuyo_x"
@@ -29,6 +31,10 @@ EXE_NAME = "RTX_Media_Master_v3.exe"
 
 def q(tag: str) -> str:
     return f"{{{WIX_NS}}}{tag}"
+
+
+def qu(tag: str) -> str:
+    return f"{{{WIX_UI_NS}}}{tag}"
 
 
 def safe_id(rel: str) -> str:
@@ -66,14 +72,24 @@ def main() -> None:
         "Compressed": "yes",
     })
     ET.SubElement(package, q("MajorUpgrade"), {
-        "DowngradeErrorMessage": "Установлена более новая версия RTX Media Master.",
+        "DowngradeErrorMessage": "A newer version of RTX Media Master is already installed.",
     })
-    ET.SubElement(package, q("MediaTemplate"), {"EmbedCab": "yes"})
+    ET.SubElement(package, q("MediaTemplate"), {
+        "EmbedCab": "yes", "CompressionLevel": "high",
+    })
     ET.SubElement(package, q("Icon"), {
         "Id": "AppIcon", "SourceFile": str(ICON),
     })
     ET.SubElement(package, q("Property"), {
         "Id": "ARPPRODUCTICON", "Value": "AppIcon",
+    })
+    ET.SubElement(package, q("Property"), {
+        "Id": "WixUIInstallDir", "Value": r"C:\Program Files\RTX Media Master",
+    })
+
+    ui = ET.SubElement(package, q("UI"))
+    ET.SubElement(ui, qu("WixUI"), {
+        "Id": "WixUI_InstallDir", "InstallDirectory": "INSTALLFOLDER",
     })
 
     pf = ET.SubElement(package, q("StandardDirectory"), {

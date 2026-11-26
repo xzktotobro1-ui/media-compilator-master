@@ -25,3 +25,7 @@
    `msiexec /x RTX_Media_Master_v3.msi /quiet /norestart`.
 
 Локальный скрипт `build.ps1` автоматизирует шаги 1–7.
+
+## Особенности установщика v3.5
+
+Для сборки MSI используется расширение `WixToolset.UI.wixext` (`wix extension add -g WixToolset.UI.wixext`) и `wix build -ext WixToolset.UI.wixext`. В `generate_wxs.py` добавлены `WixUI_InstallDir`, `Property WixUIInstallDir` и `MediaTemplate CompressionLevel="high"`. Дистрибутив включает полный `ffmpeg.exe` и облегчённый `ffprobe.exe`.
