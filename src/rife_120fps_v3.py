@@ -189,7 +189,7 @@ AUDIO_MODE_CHOICES = ["copy", "aac"]
 AUDIO_BITRATE_CHOICES = ["128k", "160k", "192k", "256k", "320k"]
 ENGINE_CODEC_CHOICES = ["auto", "av1", "hevc", "vvc", "h264"]
 ENGINE_PRESET_CHOICES = ["compact", "balanced", "quality"]
-QUALITY_CHOICES = [12, 14, 16, 18, 20, 22, 24, 26, 28]
+QUALITY_CHOICES = [12, 14, 16, 18, 20, 21, 22, 24, 26, 28]
 
 # Профили «размер ↔ качество». Значения: (кодек, NVENC preset, CQ/CRF, лимит битрейта).
 PROFILE_BALANCED = "Оптимально (малый размер, высокое качество)"
@@ -366,17 +366,19 @@ class AppSettings:
             result.geometry = (
                 geometry
                 if isinstance(geometry, str)
-                and re.fullmatch(r"\d{3,5}x\d{3,5}", geometry)
+                and re.fullmatch(r"\d{3,5}x\d{3,5}(?:[+-]\d+[+-]\d+)?", geometry)
                 else result.geometry
             )
             # Старые settings.json не знают про профили — обновляем до оптимума.
             if "profile" not in data or data.get("profile") not in PROFILE_CHOICES:
                 result.profile = PROFILE_BALANCED
                 codec, preset_name, quality, limit = PROFILE_PRESETS[PROFILE_BALANCED]
-                result.output_codec = codec
-                result.nvenc_preset = preset_name
-                result.quality = quality
-                result.limit_bitrate = limit
+                for key, value in (
+                    ("output_codec", codec), ("nvenc_preset", preset_name),
+                    ("quality", quality), ("limit_bitrate", limit),
+                ):
+                    if key not in data:
+                        setattr(result, key, value)
             if "theme" not in data or data.get("theme") not in THEME_CHOICES:
                 result.theme = THEME_SYSTEM
         except Exception as exc:
@@ -1887,7 +1889,7 @@ class VideoProcessorApp:
             ("Целевой FPS:", self.target_fps, FPS_CHOICES, 12,
              lambda _e: self.on_settings_changed()),
             ("Разрешение:", self.target_res,
-             [label for label, _ in RESOLUTION_CHOICES], 18,
+             [value for _, value in RESOLUTION_CHOICES], 18,
              lambda _e: self.on_settings_changed()),
             ("Алгоритм масштабирования:", self.scale_algo, SCALE_CHOICES, 12, None),
             ("Видеокодек:", self.output_codec, CODEC_CHOICES, 12,
@@ -2251,6 +2253,10 @@ class VideoProcessorApp:
         return thread
 
     def verify_and_download_dependencies_bootstrap(self) -> None:
+        if engine is None:
+            self.status_msg.set("Движок v3.5 не найден (media_engine_v35.py).")
+            self.btn_start.configure(state="disabled")
+            return
         if (
             self.ffmpeg_path().exists() and self.ffprobe_path().exists()
             and self.rife_path().exists() and self.models_path().exists()
@@ -2524,24 +2530,19 @@ class VideoProcessorApp:
         if not self.ffmpeg_path().exists() or not self.ffprobe_path().exists():
             messagebox.showerror("Нет FFmpeg", "Не найдены ffmpeg.exe и ffprobe.exe рядом с программой.")
             return False
-        if cfg.mode == "rife_tensorrt":
-            if not self.rife_path().exists() or not self.models_path().exists():
-                messagebox.showerror("Нет RIFE", "Не найден RIFE или каталог models.")
-                return False
-            try:
-                self.find_rife_model()
-            except RuntimeError as exc:
-                messagebox.showerror("Нет модели RIFE", str(exc))
-                return False
+        if cfg.mode == "rife_tensorrt" and engine is None:
+            messagebox.showerror("Нет движка", "Движок v3.5 не найден в сборке.")
+            return False
         # Проверка свободного места (консервативно 6 ГБ на файл)
         try:
-            for job in jobs:
-                parent = Path(job).parent
-                usage = shutil.disk_usage(parent)
+            directories = [Path(tempfile.gettempdir())]
+            directories.extend(Path(job).parent for job in jobs)
+            for directory in dict.fromkeys(directories):
+                usage = shutil.disk_usage(directory)
                 if usage.free < 6 * 1024**3:
                     messagebox.showwarning(
                         "Мало места",
-                        f"На диске {parent} менее 6 ГБ свободно. "
+                        f"На диске {directory} менее 6 ГБ свободно. "
                         "Обработка может прерваться.",
                     )
                     break
@@ -2655,6 +2656,11 @@ class VideoProcessorApp:
         return process
 
     def terminate_processes(self) -> None:
+        if engine is not None:
+            try:
+                engine.cancel_active_processes()
+            except Exception:
+                logging.exception('Не удалось остановить процессы движка')
         with self.process_lock:
             processes = list(self.active_processes)
         for proc in processes:
@@ -2834,11 +2840,15 @@ class VideoProcessorApp:
                     self.speed_fps.set(f"Скорость: {fps:.1f}x")
                     self.eta_time.set(f"Осталось: {eta}")
                 elif kind == "v35_progress":
-                    _, pct, description = event
+                    _, pct, description, speed, eta = event
                     self.progress_bar.configure(value=max(0, min(100, pct)))
                     if hasattr(self, "file_progress"):
                         self.file_progress.configure(value=max(0, min(100, pct)))
                     self.progress_percent.set(f"{pct:.1f}%")
+                    self.speed_fps.set(
+                        f"Скорость: {speed}" if speed else "Скорость: —"
+                    )
+                    self.eta_time.set(f"Осталось: {eta}")
                     if description:
                         self.stage_text.set(f"Стадия: {description}")
                 elif kind == "v35_stats":
@@ -2876,7 +2886,11 @@ class VideoProcessorApp:
                         self.status_msg.set("Обработка отменена.")
         except queue.Empty:
             pass
-        self.window.after(150, self.poll_ui_events)
+        except Exception:
+            logging.exception("Ошибка обработки события UI")
+        finally:
+            if not self.closing:
+                self.window.after(150, self.poll_ui_events)
 
     # --------------------------- filter / encoder builders ----------------
 
@@ -3245,7 +3259,7 @@ class VideoProcessorApp:
 
     def make_output_path(self, input_file: str, target_fps: int) -> Path:
         source = Path(input_file)
-        candidate = source.with_name(f"{source.stem}_{target_fps}fps_master{source.suffix}")
+        candidate = source.with_name(f"{source.stem}_{target_fps}fps_master.mp4")
         counter = 1
         while candidate.exists():
             candidate = source.with_name(
@@ -3320,13 +3334,16 @@ class VideoProcessorApp:
             raise RuntimeError("Движок v3.5 недоступен")
         self.set_stage("Стадия: инициализация конвейера v3.5")
         self.set_status("Диагностика FFmpeg / RIFE / Vulkan...")
+        res_match = re.search(r"(\d+)\s*[xX:]\s*(\d+)", str(cfg.target_res))
+        scale = f"{res_match.group(1)}x{res_match.group(2)}" if res_match else None
         cfg35 = engine.PipelineConfig(
             input=Path(input_file),
             output=Path(output_file),
+            scale=scale,
             fps=str(cfg.target_fps),
             codec=cfg.engine_codec,
             preset=cfg.engine_preset,
-            enhance=bool(cfg.engine_enhance or cfg.denoise or cfg.sharpen),
+            enhance=bool(cfg.engine_enhance),
             gpu=cfg.engine_gpu,
             audio_codec=cfg.audio_mode,
             audio_bitrate=cfg.audio_bitrate,
@@ -3425,18 +3442,30 @@ class GuiProgress:
 
     def __init__(self, app: "VideoProcessorApp") -> None:
         self.app = app
+        self.started = 0.0
 
     def start(self, description: str, total: float) -> None:
+        self.started = time.monotonic()
         self.app.ui_events.put(("stage", f"Стадия: {description}"))
-        self.app.ui_events.put(("progress", 0.0, 0.0, "--:--:--"))
+        self.app.ui_events.put(
+            ("v35_progress", 0.0, description, "", "--:--:--")
+        )
 
     def update(self, value: float, total: float,
                description: str | None = None) -> None:
-        pct = 100.0 * value / max(1.0, total)
-        self.app.ui_events.put(("v35_progress", pct, description or ""))
+        pct = min(100.0, max(0.0, 100.0 * value / max(1.0, total)))
+        elapsed = max(0.001, time.monotonic() - self.started)
+        rate = pct / elapsed
+        eta = format_eta((100.0 - pct) / rate) if rate > 0.0001 else "--:--:--"
+        speed = f"{rate * 60.0:.1f}%/мин" if rate > 0.0001 else ""
+        self.app.ui_events.put(
+            ("v35_progress", pct, description or "", speed, eta)
+        )
 
     def finish(self) -> None:
-        self.app.ui_events.put(("v35_progress", 100.0, ""))
+        self.app.ui_events.put(
+            ("v35_progress", 100.0, "", "", "00:00:00")
+        )
 
 
 # ---------------------------------------------------------------------------

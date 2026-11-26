@@ -21,6 +21,33 @@ import os
 import re
 import shutil
 import subprocess
+import threading
+
+_ACTIVE_PROCS: set[subprocess.Popen] = set()
+_PROC_LOCK = threading.Lock()
+
+def register_process(proc: subprocess.Popen) -> None:
+    with _PROC_LOCK:
+        _ACTIVE_PROCS.add(proc)
+
+def unregister_process(proc: subprocess.Popen) -> None:
+    with _PROC_LOCK:
+        _ACTIVE_PROCS.discard(proc)
+
+def cancel_active_processes() -> None:
+    with _PROC_LOCK:
+        procs = list(_ACTIVE_PROCS)
+    for proc in procs:
+        try:
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=3)
+                except Exception:
+                    proc.kill()
+                    proc.wait(timeout=3)
+        except Exception:
+            LOG.debug('Не удалось завершить процесс движка', exc_info=True)
 import sys
 import tempfile
 import time
@@ -135,6 +162,7 @@ def run_ffmpeg_progress(argv: Sequence[Any], duration: float, progress: "Progres
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding="utf-8", errors="replace", **hidden_run_kwargs(),
         )
+        register_process(proc)
     except FileNotFoundError as exc:
         raise PipelineError(f"Не найден исполняемый файл: {argv[0]}") from exc
 
@@ -165,9 +193,11 @@ def run_ffmpeg_progress(argv: Sequence[Any], duration: float, progress: "Progres
             if deadline is not None and time.monotonic() > deadline:
                 raise PipelineError(f"Превышен таймаут команды: {printable}")
         proc.wait()
+        unregister_process(proc)
     except BaseException:
         proc.kill()
-        proc.wait()
+        unregister_process(proc)
+        proc.communicate()
         raise
     if proc.returncode != 0:
         detail = (proc.stderr.read() if proc.stderr else "").strip()
@@ -986,7 +1016,7 @@ def verify_output(ffprobe: Path, output: Path, info: MediaInfo,
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="rife_120fps_v3.py",
+        prog="rtx_media_master_v35.py",
         description="RIFE NCNN + современный видеокодер: интерполяция, enhance и сжатие.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )

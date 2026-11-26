@@ -107,6 +107,13 @@ wix build installer/Package.wxs -o RTX_Media_Master_v3.msi
 - [Предложить функцию](.github/ISSUE_TEMPLATE/feature_request.md)
 - [Правила участия](CONTRIBUTING.md), [ChangeLog](CHANGELOG.md), [Кодекс поведения](CODE_OF_CONDUCT.md)
 
+## Исправления по аудиту (v3.5)
+
+- Устойчивый насос событий GUI: одно битое событие больше не парализует интерфейс.
+- Корректное сохранение разрешения, геометрии окна и профиля; enhance v3.5 не зависит отlegacy-опций.
+- Отмена и закрытие окна завершают дочерние процессы FFmpeg/RIFE; проверка диска учитывает `%TEMP%`.
+- Движок и CLI используют реестр активных процессов для безопасной отмены.
+
 ## Лицензии
 
 Код приложения — [MIT](LICENSE). Сторонние компоненты и их лицензии (FFmpeg, libx264, libx265, libsvtav1, RIFE, ncnn, Python, Tcl/Tk, PyInstaller, TensorRT, WiX) перечислены в [NOTICE.md](NOTICE.md). Бинарные зависимости не хранятся в репозитории.
