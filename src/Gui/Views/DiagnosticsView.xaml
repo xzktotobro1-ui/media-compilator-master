@@ -45,10 +45,16 @@
 
                     <StackPanel Grid.Column="1" Orientation="Vertical" HorizontalAlignment="Right">
                         <TextBlock Text="VRAM" Style="{StaticResource Caption}" HorizontalAlignment="Right" />
-                        <TextBlock Text="{Binding VramUsed, StringFormat={}{0:0.##} / {1:0.##} GB}"
-                                   Style="{StaticResource Caption}" HorizontalAlignment="Right" />
+                        <TextBlock Style="{StaticResource Caption}" HorizontalAlignment="Right">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="{}{0:0.##} / {1:0.##} GB">
+                                    <Binding Path="VramUsed" />
+                                    <Binding Path="VramTotal" />
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
                         <ProgressBar Style="{StaticResource GlassProgressBar}"
-                                     Value="{Binding VramPercent}" Maximum="100" Margin="0,6,0,0" Height="6"
+                                     Value="{Binding VramPercent, Mode=OneWay}" Maximum="100" Margin="0,6,0,0" Height="6"
                                      Width="140" />
                     </StackPanel>
                 </Grid>

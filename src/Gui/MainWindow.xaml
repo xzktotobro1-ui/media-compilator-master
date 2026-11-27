@@ -74,7 +74,7 @@
                             Click="Minimize_Click" ToolTip="Свернуть" />
                     <Button Content="□" Style="{StaticResource WinButton}"
                             Click="Maximize_Click" ToolTip="Развернуть" />
-                    <Button Content="✕" Style="{StaticResource WinButton Close}"
+                    <Button Content="✕" Style="{StaticResource WinButton.Close}"
                             Click="Close_Click" ToolTip="Закрыть" />
                 </StackPanel>
             </Grid>
@@ -98,24 +98,48 @@
                     </Grid.RowDefinitions>
 
                     <StackPanel Grid.Row="0" Margin="0,26,0,20">
-                        <Button Content="&#xE74E; Очередь" Style="{StaticResource NavButton}"
+                        <Button Style="{StaticResource NavButton}"
                                 Command="{Binding NavigateCommand}"
-                                CommandParameter="{x:Static vm:AppPage.Queue}" />
-                        <Button Content="&#xE790; Диагностика" Style="{StaticResource NavButton}"
+                                CommandParameter="{x:Static vm:AppPage.Queue}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets"
+                                           FontSize="14" Margin="0,0,10,0" />
+                                <TextBlock Text="Очередь" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource NavButton}"
                                 Command="{Binding NavigateCommand}"
-                                CommandParameter="{x:Static vm:AppPage.Diagnostics}" />
-                        <Button Content="&#xE713; Настройки" Style="{StaticResource NavButton}"
+                                CommandParameter="{x:Static vm:AppPage.Diagnostics}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE790;" FontFamily="Segoe MDL2 Assets"
+                                           FontSize="14" Margin="0,0,10,0" />
+                                <TextBlock Text="Диагностика" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource NavButton}"
                                 Command="{Binding NavigateCommand}"
-                                CommandParameter="{x:Static vm:AppPage.Settings}" />
-                        <Button Content="&#xE71E; Журнал" Style="{StaticResource NavButton}"
+                                CommandParameter="{x:Static vm:AppPage.Settings}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets"
+                                           FontSize="14" Margin="0,0,10,0" />
+                                <TextBlock Text="Настройки" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource NavButton}"
                                 Command="{Binding NavigateCommand}"
-                                CommandParameter="{x:Static vm:AppPage.Log}" />
+                                CommandParameter="{x:Static vm:AppPage.Log}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE71E;" FontFamily="Segoe MDL2 Assets"
+                                           FontSize="14" Margin="0,0,10,0" />
+                                <TextBlock Text="Журнал" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
 
                     <StackPanel Grid.Row="2" Margin="0,0,0,26">
                         <Separator Margin="16,8" />
                         <Button Content="Справка" Style="{StaticResource NavButton}"
-                                Command="{Binding OpenAboutCommand}" />
+                                Command="{Binding OpenHelpCommand}" />
                         <Button Content="О программе" Style="{StaticResource NavButton}"
                                 Command="{Binding OpenAboutCommand}" />
                     </StackPanel>
@@ -124,7 +148,7 @@
 
             <!-- Страницы -->
             <Border Grid.Column="1" Background="{StaticResource WindowBackgroundBrush}">
-                <ContentControl Content="{Binding SelectedPageViewModel}" />
+                <ContentControl x:Name="PageHost" Content="{Binding SelectedPageViewModel}" />
             </Border>
         </Grid>
 

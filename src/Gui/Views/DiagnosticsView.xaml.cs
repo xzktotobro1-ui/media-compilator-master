@@ -9,23 +9,31 @@ namespace RTXMediaMaster.Gui.Views;
 
 public partial class DiagnosticsView
 {
-    private readonly DiagnosticsViewModel _vm;
+    private DiagnosticsViewModel? _vm;
 
     public DiagnosticsView()
     {
         InitializeComponent();
-        _vm = (DiagnosticsViewModel)DataContext;
-        _vm.PropertyChanged += (s, e) =>
+        // DataContext приходит из DataTemplate только после создания view
+        DataContextChanged += (s, e) =>
         {
-            if (e.PropertyName == nameof(DiagnosticsViewModel.GpuUtilization))
-                UpdateGauge();
+            if (_vm != null) _vm.PropertyChanged -= OnVmPropertyChanged;
+            _vm = e.NewValue as DiagnosticsViewModel;
+            if (_vm != null) _vm.PropertyChanged += OnVmPropertyChanged;
+            UpdateGauge();
         };
-        UpdateGauge();
+        Loaded += (s, e) => UpdateGauge();
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DiagnosticsViewModel.GpuUtilization))
+            UpdateGauge();
     }
 
     private void UpdateGauge()
     {
-        if (GaugeArc == null) return;
+        if (GaugeArc == null || _vm == null) return;
         double pct = Math.Clamp(_vm.GpuUtilization, 0, 100);
         double sweep = pct / 100.0 * 360.0;
         double r = 60;

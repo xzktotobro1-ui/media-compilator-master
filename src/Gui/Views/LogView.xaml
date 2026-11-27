@@ -5,6 +5,7 @@
              xmlns:conv="clr-namespace:RTXMediaMaster.Gui.Converters">
     <UserControl.Resources>
         <conv:BoolToVisibilityConverter x:Key="B2V" />
+        <conv:LogLevelToBrushConverter x:Key="S2B" />
     </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions>

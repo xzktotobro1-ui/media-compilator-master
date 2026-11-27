@@ -411,7 +411,7 @@ public partial class LogViewModel : ObservableObject
         CopyCommand = new RelayCommand(Copy);
         CopyCliCommand = new RelayCommand(CopyCli);
         ClearCommand = new RelayCommand(Clear);
-        Add("RTX Media Master v3.5 запущен", LogLevel.Info);
+        Add("RTX Media Master v4.0 запущен", LogLevel.Info);
     }
 
     public void SetCliCommand(string command) => CliCommand = command;

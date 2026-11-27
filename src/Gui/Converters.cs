@@ -110,3 +110,19 @@ public sealed class ProgressFillConverter : IMultiValueConverter
     public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
+
+public sealed class LogLevelToBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var color = value switch
+        {
+            LogLevel.Error => "#FF6B6B",
+            LogLevel.Warning => "#FBBF24",
+            _ => "#34D399"
+        };
+        return new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+    }
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        Binding.DoNothing;
+}

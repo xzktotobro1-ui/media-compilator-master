@@ -41,7 +41,7 @@ public partial class MainViewModel : ObservableObject
     private string _versionBadge = "v3.5";
 
     [ObservableProperty]
-    private string _gpuLabel = "RTX 3050 • --% • --/-- GB";
+    private string _gpuLabel = "Опрос GPU...";
 
     [ObservableProperty]
     private bool _isBusy;
@@ -123,6 +123,7 @@ public partial class MainViewModel : ObservableObject
         StartCommand = new AsyncRelayCommand(StartAsync, () => !IsBusy && Queue.Items.Count > 0);
         CancelCommand = new RelayCommand(Cancel);
         OpenAboutCommand = new RelayCommand(OpenAbout);
+        OpenHelpCommand = new RelayCommand(OpenHelp);
         CheckUpdatesCommand = new AsyncRelayCommand(CheckUpdatesAsync);
         ExitCommand = new RelayCommand(() => Application.Current.Shutdown());
         OpenSettingsFolderCommand = new RelayCommand(OpenSettingsFolder);
@@ -134,6 +135,9 @@ public partial class MainViewModel : ObservableObject
             if (e.PropertyName == nameof(QueueViewModel.IsProcessing))
                 OnPropertyChanged(nameof(IsProcessing));
         };
+
+        // Первая вкладка отображается сразу после запуска
+        SelectedPageViewModel = Queue;
     }
 
     public bool IsProcessing => Queue.IsProcessing;
@@ -142,6 +146,7 @@ public partial class MainViewModel : ObservableObject
     public ICommand StartCommand { get; }
     public ICommand CancelCommand { get; }
     public ICommand OpenAboutCommand { get; }
+    public ICommand OpenHelpCommand { get; }
     public ICommand CheckUpdatesCommand { get; }
     public ICommand ExitCommand { get; }
     public ICommand OpenSettingsFolderCommand { get; }
@@ -208,6 +213,19 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private void OpenHelp()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "https://github.com/xzktotobro1-ui/media-compilator-master#readme",
+                UseShellExecute = true
+            });
+        }
+        catch { }
+    }
+
     private void OpenSettingsFolder()
     {
         try { System.Diagnostics.Process.Start("explorer.exe", _settingsService.AppDataDir); } catch { }
@@ -223,7 +241,9 @@ public partial class MainViewModel : ObservableObject
 
     public void SetGpuInfo(string name, double utilization, double vramUsed, double vramTotal)
     {
-        GpuLabel = $"{name} • {(int)utilization}% • {vramUsed:0.##}/{vramTotal:0.##} GB";
+        GpuLabel = vramTotal > 0
+            ? $"{name} • {(int)utilization}% • {vramUsed:0.##}/{vramTotal:0.##} GB"
+            : $"{name} • {(int)utilization}%";
     }
 
     public void SetStep(int index)
