@@ -1,0 +1,81 @@
+using System;
+using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Input;
+using RTXMediaMaster.Gui.ViewModels;
+
+namespace RTXMediaMaster.Gui;
+
+public partial class MainWindow
+{
+    private readonly MainViewModel _vm;
+
+    public MainWindow(MainViewModel viewModel)
+    {
+        _vm = viewModel;
+        DataContext = _vm;
+        InitializeComponent();
+
+        // Запуск диагностики при открытии
+        _vm.Diagnostics.RefreshCommand.Execute(null);
+
+        // Mica / Acrylic фон окна (Windows 11 22H2+). Применяется после создания HWND.
+        SourceInitialized += (_, _) => _ = ApplyMica();
+        StateChanged += (_, _) => UpdateMaximizeGlyph();
+    }
+
+    private bool ApplyMica()
+    {
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            const int DWMWA_SYSTEMBACKDROP_TYPE = 13;
+            const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+            // 2 = Mica, 3 = Acrylic, 4 = Tabbed
+            int backdrop = 2;
+            int corner = 2; // DWMWCP_ROUND
+            DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE,
+                ref backdrop, Marshal.SizeOf<int>());
+            DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
+                ref corner, Marshal.SizeOf<int>());
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            return;
+        }
+        if (e.LeftButton == MouseButtonState.Pressed && WindowState != WindowState.Maximized)
+            DragMove();
+    }
+
+    private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void Maximize_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    }
+
+    private void UpdateMaximizeGlyph()
+    {
+        // no-op placeholder; glyph handled in XAML via trigger if needed
+    }
+
+    private void Close_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.CancelCommand.Execute(null);
+        Application.Current.Shutdown();
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute,
+        ref int pvAttribute, int cbAttribute);
+}

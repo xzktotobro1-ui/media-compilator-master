@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "dgSpecHash": "DEH5a0OE1Dk=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\xzkto\\Documents\\RTX Media Compilator\\src\\Gui\\RTX_Media_Master_v3.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\xzkto\\.nuget\\packages\\communitytoolkit.mvvm\\8.4.0\\communitytoolkit.mvvm.8.4.0.nupkg.sha512",
+    "C:\\Users\\xzkto\\.nuget\\packages\\ookii.dialogs.wpf\\5.0.1\\ookii.dialogs.wpf.5.0.1.nupkg.sha512",
+    "C:\\Users\\xzkto\\.nuget\\packages\\microsoft.netcore.app.ref\\8.0.34\\microsoft.netcore.app.ref.8.0.34.nupkg.sha512",
+    "C:\\Users\\xzkto\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\8.0.34\\microsoft.windowsdesktop.app.ref.8.0.34.nupkg.sha512",
+    "C:\\Users\\xzkto\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\8.0.34\\microsoft.aspnetcore.app.ref.8.0.34.nupkg.sha512",
+    "C:\\Users\\xzkto\\.nuget\\packages\\microsoft.netcore.app.host.win-x64\\8.0.34\\microsoft.netcore.app.host.win-x64.8.0.34.nupkg.sha512"
+  ],
+  "logs": []
+}

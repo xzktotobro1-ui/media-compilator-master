@@ -1,0 +1,40 @@
+using System.Windows;
+using System.Windows.Controls;
+using Microsoft.Win32;
+using RTXMediaMaster.Gui.ViewModels;
+
+namespace RTXMediaMaster.Gui.Views;
+
+public partial class SettingsView : UserControl
+{
+    public SettingsView()
+    {
+        InitializeComponent();
+    }
+
+    private void BrowsePath_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || DataContext is not SettingsViewModel vm) return;
+        var tag = btn.Tag?.ToString();
+        if (tag == "Models")
+        {
+            var dlg = new Ookii.Dialogs.Wpf.VistaFolderBrowserDialog();
+            if (dlg.ShowDialog(Window.GetWindow(this)) == true)
+            {
+                if (tag == "Ffmpeg") vm.FfmpegPath = dlg.SelectedPath;
+                else if (tag == "Ffprobe") vm.FfprobePath = dlg.SelectedPath;
+                else if (tag == "Rife") vm.RifePath = dlg.SelectedPath;
+                else if (tag == "Models") vm.ModelsDir = dlg.SelectedPath;
+            }
+            return;
+        }
+
+        var ofd = new OpenFileDialog();
+        if (ofd.ShowDialog(Window.GetWindow(this)) == true)
+        {
+            if (tag == "Ffmpeg") vm.FfmpegPath = ofd.FileName;
+            else if (tag == "Ffprobe") vm.FfprobePath = ofd.FileName;
+            else if (tag == "Rife") vm.RifePath = ofd.FileName;
+        }
+    }
+}
