@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""RTX Media Master 3.5 — production-grade RIFE / FFmpeg video pipeline.
+"""RTX Media Master 4.0 — production-grade RIFE / FFmpeg video pipeline.
 
 Возможности:
   * RIFE NCNN (Vulkan) интерполяция и downscaling FPS;
@@ -59,7 +59,7 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 APP_NAME = "RTX Media Master"
-APP_VERSION = "v3.5"
+APP_VERSION = "v4.0"
 
 LOG = logging.getLogger("rtx_media_master")
 

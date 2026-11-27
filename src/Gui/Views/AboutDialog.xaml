@@ -1,0 +1,48 @@
+<Window x:Class="RTXMediaMaster.Gui.Views.AboutDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="О программе"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Width="560" Height="620"
+        Background="{StaticResource WindowBackgroundBrush}"
+        WindowStyle="None" AllowsTransparency="True">
+    <Border Style="{StaticResource GlassCardBorder}" CornerRadius="14">
+        <Border Style="{StaticResource GlassCard}" CornerRadius="14" Padding="26,22" Margin="1">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,16">
+                    <Image Source="/Assets/app_icon.ico" Width="32" Height="32" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="RTX Media Master" Style="{StaticResource H3}" />
+                        <TextBlock Text="v4.0" Foreground="#00D2FF" FontWeight="Bold" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Separator Margin="0,8" BorderBrush="#1A1F26" />
+
+                <TextBlock Text="Автор: x_kitaikuyo_x" Style="{StaticResource Body}" Margin="0,6,0,2" />
+                <TextBlock Text="Репозиторий: github.com/xzktotobro1-ui/media-compilator-master"
+                           Style="{StaticResource BodyMuted}" Margin="0,0,0,14" />
+
+                <TextBlock Text="Лицензия (MIT)" Style="{StaticResource Caption}" Margin="0,0,0,6" />
+                <Border Background="#10141A" CornerRadius="8" Padding="12">
+                    <TextBlock Text="Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (&quot;the Software&quot;), to deal in the Software without restriction..." 
+                               Style="{StaticResource Caption}" TextWrapping="Wrap" Foreground="#B9C0CC" />
+                </Border>
+
+                <TextBlock Text="Сторонние компоненты (NOTICE.md)" Style="{StaticResource Caption}" Margin="0,14,0,6" />
+                <ItemsControl Margin="0,0,0,14" ItemsSource="{Binding NoticeComponents, RelativeSource={RelativeSource AncestorType=Window}}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" Style="{StaticResource Caption}" Foreground="#B9C0CC" Margin="0,2,0,0" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Button Content="Проверить обновления" Style="{StaticResource SecondaryButton}"
+                        HorizontalAlignment="Left" Margin="0,4,0,0" Click="CheckUpdates_Click" />
+                <TextBlock x:Name="UpdateStatus" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+            </StackPanel>
+        </Border>
+    </Border>
+</Window>

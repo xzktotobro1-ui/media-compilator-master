@@ -8,7 +8,9 @@
 
 **Автономная Windows-утилита для интерполяции видео до 60/120 FPS** на базе **RIFE (ncnn-vulkan)** и **FFmpeg**. Работает без установки Python: готовая сборка вместе со всеми зависимостями поставляется через MSI-установщик.
 
-Программа предназначена для владельцев видеокарт NVIDIA/AMD с поддержкой Vulkan: она превращает 24/30/60 FPS-ролики в плавные 60/120 FPS, сохраняя исходную длительность и аудио. Есть пакетная очередь, инспектор файлов, диагностика GPU/VRAM и ускоренное кодирование NVENC/AMF с программным фолбэком.
+Начиная с **v4** интерфейс полностью переписан на **C# / .NET 8 (WPF)**: нативный заголовок, светящиеся стеклянные карточки, капсула GPU, шаги обработки в статус-баре, асинхронные миниатюры и живая диагностика. Старый Tkinter-интерфейс удалён.
+
+Программа предназначена для владельцев видеокарт NVIDIA/AMD с поддержкой Vulkan: она превращает 24/30/60 FPS-ролики в плавные 60/120 FPS, сохраняя исходную длительность и аудио. Есть пакетная очередь, поиск и Drag & Drop, инспектор файлов, диагностика GPU/VRAM и ускоренное кодирование NVENC/AMF с программным фолбэком.
 
 ## Скриншоты
 
@@ -37,8 +39,22 @@
 - **Профили «качество ↔ размер»**, лимит битрейта, HDR-тонмаппинг, CAS-резкость.
 - **Очередь файлов** с поиском, прогрессом стадий, ETA, бейджами длительности/FPS и карточкой-инспектором.
 - **Диагностика**: реальные комплектующие, загрузка GPU и VRAM через `nvidia-smi`, проверка TensorRT.
-- **Интерфейс** в стиле Windows 11 / Fluent: тёмная палитра AI Dark, светлая тема и тема «Как в Windows».
-- **Никакого Python** на целевом компьютере — PyInstaller-сборка включает interpreter, Tkinter и все модули.
+- **Интерфейс** на WPF в стиле Windows 11: тёмная палитра AI Dark, Mica/акрил, градиент RTX Green → Cyan.
+- **Никакого Python** на целевом компьютере — CLI-движок собран PyInstaller'ом в `rtx_engine.exe`, GUI работает на .NET 8.
+
+## v4 — новый интерфейс на C# / .NET 8 (WPF)
+
+Главное изменение релиза — фронтенд `RTX_Media_Master_v3.exe` на WPF вместо Tkinter. Движок остался тем же production-grade пайплайном, но теперь работает отдельным headless-процессом `rtx_engine.exe` (при отсутствии — через `python -u rtx_media_master_v35.py`). GUI никогда не блокирует интерфейс во время рендера и безопасно завершает дерево процессов по «Отмене».
+
+### Что появилось
+
+- **Очередь**: Drag & Drop файлов и папок, поиск, асинхронные миниатюры (`ffmpeg -ss 1`), метаданные `ffprobe`, бейдж VFR, прогресс по файлам, «Тест 5 сек» с окном сравнения «До / После», открытие папки и удаление.
+- **Пили-переключатели** для FPS (60/120), пресета (`compact/balanced/quality`), кодека (`auto/av1/hevc/vvc/h264`) и `Enhance`; менеджер пресетов и действие после завершения (уведомление / сон / выключение).
+- **Диагностика**: опрос `nvidia-smi` в фоне, радиальный индикатор загрузки, полоса VRAM, спарклайны и таблица компонентов (FFmpeg, FFprobe, RIFE, Vulkan, кодеры).
+- **Настройки**: тема, масштаб/кроп/аудио, расширенные пути к бинарникам и моделям; сохранение в `%LOCALAPPDATA%\RTX Media Master\settings.json`.
+- **Журнал**: терминальный вывод с подсветкой INFO/WARNING/ERROR, поиск, экспорт в `.txt`, копирование CLI-команды, карточка итоговой проверки `ffprobe`.
+- **О программе**: версия, автор, GitHub, лицензия MIT, состав `NOTICE.md` и проверка обновлений через GitHub Releases.
+- **Интерфейс**: тёмная тема, эффекты Mica/акрил, градиент RTX Green → Cyan, собственный заголовок и степпер `Анализ → Сцены → RIFE AI → Кодирование → Готово`.
 
 ## v3.5 — GUI-программа с новым движком
 
@@ -58,13 +74,13 @@ CLI-бэкенде: диагностика FFmpeg/FFprobe/RIFE/Vulkan, поис�
 
 ### Headless-бэкенд
 
-CLI сохранён только как внутренняя опция для автоматизации:
+GUI запускает отдельный CLI-движок `rtx_engine.exe` (из `src/rtx_engine.spec`), а если его нет — `python -u rtx_media_master_v35.py`. Для автоматизации движок можно вызвать напрямую:
 
 ```powershell
-RTX_Media_Master_v3.exe --headless --input input.mp4 --output output.mp4 --fps 120 --codec auto --preset balanced --enhance
+rtx_engine.exe --input input.mp4 --output output.mp4 --fps 120 --codec auto --preset balanced --enhance --no-progress
 ```
 
-Полный список флагов движка доступен в `src/media_engine_v35.py` и через `--help` CLI-версии.
+Полный список флагов — в `src/rtx_media_master_v35.py` и через `--help` CLI-версии. GUI разбирает логи движка, отображает стадии и итоговую проверку `ffprobe`.
 
 ## Установка
 
@@ -76,24 +92,25 @@ RTX_Media_Master_v3.exe --headless --input input.mp4 --output output.mp4 --fps 1
 
 ## Быстрый старт
 
-1. Перетащите видеофайлы в окно очереди или нажмите «Добавить».
-2. Выберите режим (`RIFE AI Interpolation`, `Turbo GPU`, `AI CPU`) и целевой FPS.
-3. Выберите профиль качества/размера и кодек.
-4. Нажмите «Обработать». Результат появится рядом с исходником как `<имя>_120fps_master.mp4`.
+1. Перетащите видеофайлы или папку в зону очереди (или нажмите «Добавить»).
+2. Пилюлями выберите целевой FPS, пресет, кодек и `Enhance`.
+3. При желании нажмите «Тест 5 сек» и сравните «До / После» перед полным рендером.
+4. Нажмите «Обработать». Результат появится рядом с исходником как `<имя>_120fps_master.mp4`, а в «Журнале» — CLI-команда и проверка `ffprobe`.
 
 ## Сборка из исходников
 
-Python нужен **только для сборки**. Подробности — в [docs/BUILD.md](docs/BUILD.md).
+Python и .NET SDK нужны **только для сборки**. Подробности — в [docs/BUILD.md](docs/BUILD.md).
 
 ```powershell
-python -m py_compile src/rife_120fps_v3.py
-pyinstaller src/rife_120fps_v3.spec --noconfirm --clean --distpath dist_new
+dotnet build src/Gui/RTX_Media_Master_v3.csproj -c Release -o dist_new/RTX_Media_Master_v3
+python -m py_compile src/rtx_media_master_v35.py
+pyinstaller src/rtx_engine.spec --noconfirm --clean --distpath dist_new
 # скопируйте ffmpeg/ffprobe/rife-ncnn-vulkan/models в dist_new/RTX_Media_Master_v3
 python installer/generate_wxs.py
 wix build installer/Package.wxs -o RTX_Media_Master_v3.msi
 ```
 
-Автоматизация: `powershell -ExecutionPolicy Bypass -File build.ps1` (флаг `-SkipPyInstaller` переиспользует готовую сборку).
+Автоматизация: `powershell -ExecutionPolicy Bypass -File build.ps1` (флаги `-SkipPyInstaller` и `-SkipDotNet` переиспользуют готовые сборки).
 
 ## Ограничения
 

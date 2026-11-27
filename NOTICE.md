@@ -10,9 +10,11 @@ RTX Media Master распространяется с рядом внешних �
 | libsvtav1 | BSD-2-Clause | AV1-кодирование |
 | rife-ncnn-vulkan | MIT | Интерполяция RIFE |
 | ncnn | BSD-3-Clause | Backend нейросети |
-| Python 3.11 | PSF License | Встроен в PyInstaller-сборку |
-| Tcl/Tk | Tcl/Tk License | GUI |
-| PyInstaller | GPL v2 + bootloader exception | Упаковщик |
+| Python 3.11 | PSF License | Встроен в CLI-движок `rtx_engine.exe` |
+| .NET 8 / WPF | MIT License | Графический интерфейс `RTX_Media_Master_v3.exe` |
+| CommunityToolkit.Mvvm | MIT License | MVVM-паттерн и команды в GUI |
+| Ookii.Dialogs.Wpf | MIT License | Диалог выбора папки |
+| PyInstaller | GPL v2 + bootloader exception | Упаковщик CLI-движка |
 | NVIDIA TensorRT | Proprietary | Только для диагностики |
 
 WiX Toolset используется только для создания MSI; согласно условиям WiX, созданные MSI не являются производными от WiX и не наследуют его лицензию. WiX 7 требует принятия OSMF EULA для организаций с выручкой выше порога; исходный код остаётся свободным.

@@ -1,0 +1,143 @@
+<UserControl x:Class="RTXMediaMaster.Gui.Views.DiagnosticsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:RTXMediaMaster.Gui.ViewModels"
+             xmlns:conv="clr-namespace:RTXMediaMaster.Gui.Converters">
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="B2V" />
+        <conv:NullToVisibilityConverter x:Key="N2V" />
+        <conv:StatusToBrushConverter x:Key="S2B" />
+        <conv:DoubleToPercentConverter x:Key="D2P" />
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Button Content="Обновить состав" Style="{StaticResource SecondaryButton}"
+                HorizontalAlignment="Left" Margin="0,0,0,12"
+                Command="{Binding RefreshCommand}" />
+
+        <!-- ================= ГЛАВНЫЕ ПОКАЗАТЕЛИ GPU ================= -->
+        <Border Grid.Row="0" Style="{StaticResource GlassCardBorder}">
+            <Border Style="{StaticResource GlassCard}" Padding="20,16" Margin="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="NVIDIA GPU" Style="{StaticResource Caption}" />
+                        <TextBlock Text="{Binding GpuName}" Style="{StaticResource H3}" Margin="0,2,0,6" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding GpuUtilization, Converter={StaticResource D2P}}"
+                                       Style="{StaticResource H3}" FontFamily="{StaticResource MonoFont}"
+                                       Foreground="#00D2FF" />
+                            <TextBlock Text=" загрузки" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                        </StackPanel>
+                        <ProgressBar Style="{StaticResource GlassProgressBar}"
+                                     Value="{Binding GpuUtilization}" Maximum="100" Margin="0,8,0,0" Height="6" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Vertical" HorizontalAlignment="Right">
+                        <TextBlock Text="VRAM" Style="{StaticResource Caption}" HorizontalAlignment="Right" />
+                        <TextBlock Text="{Binding VramUsed, StringFormat={}{0:0.##} / {1:0.##} GB}"
+                                   Style="{StaticResource Caption}" HorizontalAlignment="Right" />
+                        <ProgressBar Style="{StaticResource GlassProgressBar}"
+                                     Value="{Binding VramPercent}" Maximum="100" Margin="0,6,0,0" Height="6"
+                                     Width="140" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
+
+        <!-- ================= КОЛЬЦЕВОЙ ИНДИКАТОР ================= -->
+        <Border Grid.Row="1" Style="{StaticResource GlassCardBorder}" Margin="0,12,0,12">
+            <Border Style="{StaticResource GlassCard}" Padding="20" Margin="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Width="150" Height="150" CornerRadius="75"
+                            Background="#161A20">
+                        <Grid>
+                            <!-- Фон кольца -->
+                            <Ellipse Stroke="#1A1F26" StrokeThickness="10" />
+                            <!-- Заполнение кольца (градиент) -->
+                            <Path x:Name="GaugeArc" Stroke="{StaticResource AccentGradientBrush}"
+                                  StrokeThickness="10" />
+                            <TextBlock Text="{Binding GpuUtilization, Converter={StaticResource D2P}}"
+                                       FontSize="26" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"
+                                       FontFamily="{StaticResource MonoFont}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <TextBlock Text="загрузки GPU" Style="{StaticResource Caption}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,14" />
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Температура" Style="{StaticResource Caption}" />
+                        <TextBlock Text="{Binding GpuTemperature, StringFormat={}{0:0} °C}"
+                                   Style="{StaticResource H3}" Foreground="#34D399" />
+                        <TextBlock Text="Потребление" Style="{StaticResource Caption}" Margin="0,10,0,0" />
+                        <TextBlock Text="{Binding GpuPower, StringFormat={}{0:0} Вт}"
+                                   Style="{StaticResource H3}" Foreground="#FBBF24" />
+
+                        <!-- Живой мини-график (спарклайн) загрузки/температуры -->
+                        <TextBlock Text="Загрузка / температура" Style="{StaticResource Caption}"
+                                   Margin="0,14,0,4" />
+                        <Border Background="#10141A" CornerRadius="8" Padding="4" Width="290" Height="88">
+                            <Grid>
+                                <Polyline Points="{Binding SparkUtilPoints}" Stroke="#00D2FF"
+                                          StrokeThickness="1.5" Fill="Transparent" Stretch="None" />
+                                <Polyline Points="{Binding SparkTempPoints}" Stroke="#FBBF24"
+                                          StrokeThickness="1.5" Fill="Transparent" Stretch="None" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
+
+        <!-- ================= ТАБЛИЦА КОМПОНЕНТОВ ================= -->
+        <Border Grid.Row="2" Style="{StaticResource GlassCardBorder}">
+            <Border Style="{StaticResource GlassCard}" Padding="16" Margin="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="Компоненты конвейера" Style="{StaticResource H3}"
+                               Margin="0,0,0,10" />
+                    <ItemsControl Grid.Row="1" ItemsSource="{Binding Components}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,6,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Component}" Style="{StaticResource Body}" />
+                                    <Border Grid.Column="1" Margin="8,0,8,0" Padding="6,2" CornerRadius="8"
+                                            Background="#161A20">
+                                        <TextBlock Text="{Binding Status}" Style="{StaticResource Caption}"
+                                                   Foreground="{Binding Status, Converter={StaticResource S2B}}" />
+                                    </Border>
+                                    <TextBlock Grid.Column="2" Text="{Binding Detail}" Style="{StaticResource Caption}"
+                                               Foreground="#7A8294" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

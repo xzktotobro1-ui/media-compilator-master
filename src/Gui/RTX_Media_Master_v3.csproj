@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>..\..\installer\app_icon.ico</ApplicationIcon>
+    <AssemblyName>RTX_Media_Master_v3</AssemblyName>
+    <RootNamespace>RTXMediaMaster.Gui</RootNamespace>
+    <Version>3.5.0</Version>
+    <Company>x_kitaikuyo_x</Company>
+    <Product>RTX Media Master</Product>
+    <Description>Ultra-modern WPF frontend for RTX Media Master v3.5 (RIFE / FFmpeg pipeline).</Description>
+    <Copyright>Copyright © x_kitaikuyo_x. MIT License.</Copyright>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Ookii.Dialogs.Wpf" Version="5.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\installer\app_icon.ico">
+      <Link>Assets\app_icon.ico</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

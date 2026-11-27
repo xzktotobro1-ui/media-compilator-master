@@ -1,0 +1,329 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using RTXMediaMaster.Gui.Models;
+
+namespace RTXMediaMaster.Gui.Services;
+
+public sealed class EngineProgress
+{
+    public string Stage { get; set; } = string.Empty;
+    public double Percent { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public int CurrentSegment { get; set; }
+    public int TotalSegments { get; set; }
+    public string? OutputPath { get; set; }
+}
+
+public sealed class EngineResult
+{
+    public int ExitCode { get; set; }
+    public bool Success => ExitCode == 0;
+    public bool Cancelled => ExitCode == 130;
+    public bool PipelineError => ExitCode == 2;
+    public string? OutputPath { get; set; }
+    public Dictionary<string, string> Verification { get; set; } = new();
+    public string? ErrorMessage { get; set; }
+    public List<string> LogLines { get; set; } = new();
+}
+
+public sealed class EngineService : IDisposable
+{
+    /// <summary>Событие прогресса для обновления степпера и прогресс-бара в UI.</summary>
+    public event EventHandler<EngineProgress>? ProgressChanged;
+
+    /// <summary>Событие завершения обработки (для журнала и карточки верификации).</summary>
+    public event EventHandler<EngineResult>? Completed;
+
+    /// <summary>Полная CLI-команда последнего запуска (для копирования в буфер).</summary>
+    public string LastCliCommand { get; private set; } = string.Empty;
+
+    private readonly string _appDir;
+    private readonly string _pythonExe;
+    private readonly ProcessTreeKiller _treeKiller = new();
+    private Process? _current;
+    private readonly object _lock = new();
+    private volatile bool _cancelRequested;
+
+    public EngineService(string appDir, string? pythonExe = null)
+    {
+        _appDir = appDir;
+        _pythonExe = pythonExe ?? "python";
+    }
+
+    public void Dispose() => _treeKiller.Dispose();
+
+    /// <summary>
+    /// Определяет движок: приоритет rtx_engine.exe рядом с приложением,
+    /// иначе python -u rtx_media_master_v35.py.
+    /// </summary>
+    public (string FileName, List<string> BaseArgs, string WorkingDir) LocateEngine()
+    {
+        var exe = Path.Combine(_appDir, "rtx_engine.exe");
+        var rtxPy = Path.Combine(_appDir, "rtx_media_master_v35.py");
+        var srcPy = Path.Combine(_appDir, "src", "rtx_media_master_v35.py");
+        var envDir = Environment.GetEnvironmentVariable("RTX_MEDIA_MASTER_DIR");
+        var envPy = envDir != null ? Path.Combine(envDir, "rtx_media_master_v35.py") : null;
+
+        if (File.Exists(exe))
+            return (exe, new List<string>(), _appDir);
+
+        var py = new[] { rtxPy, srcPy, envPy }.FirstOrDefault(p => p != null && File.Exists(p));
+        if (py != null)
+            return (_pythonExe, new List<string> { "-u", py }, Path.GetDirectoryName(py) ?? _appDir);
+
+        throw new InvalidOperationException(
+            "Не найден движок: ani rtx_engine.exe, ani rtx_media_master_v35.py. " +
+            "Положите rtx_engine.exe рядом с приложением или укажите RTX_MEDIA_MASTER_DIR.");
+    }
+
+    public void Cancel()
+    {
+        _cancelRequested = true;
+        lock (_lock)
+        {
+            _treeKiller.Attach(_current?.Id ?? 0);
+            _treeKiller.KillTree();
+            try { _current?.Kill(); } catch { }
+        }
+    }
+
+    public async Task<EngineResult> RunAsync(
+        QueueItem item,
+        Models.Settings settings,
+        CancellationToken ct = default)
+    {
+        _cancelRequested = false;
+        var result = new EngineResult();
+        var (fileName, baseArgs, workDir) = LocateEngine();
+
+        var args = new List<string>(baseArgs);
+        args.Add("--input");
+        args.Add(Quote(item.SourcePath));
+
+        var expectedOutput = ComputeOutputPath(item.SourcePath, settings.TargetFps);
+        args.Add("--output");
+        args.Add(Quote(expectedOutput));
+
+        args.Add("--fps"); args.Add(settings.TargetFps);
+        args.Add("--codec"); args.Add(settings.Codec);
+        args.Add("--preset"); args.Add(settings.Preset);
+
+        if (settings.Crf.HasValue) { args.Add("--crf"); args.Add(settings.Crf.Value.ToString()); }
+        if (settings.Cq.HasValue) { args.Add("--cq"); args.Add(settings.Cq.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)); }
+
+        if (settings.Enhance) args.Add("--enhance");
+        args.Add("--gpu"); args.Add(settings.GpuIndex.ToString());
+
+        if (!string.IsNullOrWhiteSpace(settings.Scale))
+        { args.Add("--scale"); args.Add(settings.Scale); }
+
+        args.Add("--audio-codec"); args.Add(settings.AudioCodec);
+        args.Add("--audio-bitrate"); args.Add(settings.AudioBitrate);
+        args.Add("--chunk-frames"); args.Add(settings.ChunkFrames.ToString());
+
+        if (settings.NoSceneDetect) args.Add("--no-scene-detect");
+        if (settings.NoDeinterlace) args.Add("--no-deinterlace");
+        if (settings.NoColorMetadata) args.Add("--no-color-metadata");
+        if (settings.Verbose) args.Add("-v");
+
+        if (settings.UseCustomFfmpeg) { args.Add("--ffmpeg"); args.Add(settings.FfmpegPath!); }
+        if (settings.UseCustomFfprobe) { args.Add("--ffprobe"); args.Add(settings.FfprobePath!); }
+        if (settings.UseCustomRife) { args.Add("--rife"); args.Add(settings.RifePath!); }
+        if (settings.UseCustomModelsDir) { args.Add("--models-dir"); args.Add(settings.ModelsDir!); }
+
+        args.Add("--no-progress");
+
+        LastCliCommand = $"{Path.GetFileName(fileName)} {string.Join(" ", args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a))}";
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = fileName,
+            Arguments = string.Join(" ", args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a)),
+            WorkingDirectory = workDir,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            StandardOutputEncoding = System.Text.Encoding.UTF8,
+            StandardErrorEncoding = System.Text.Encoding.UTF8,
+        };
+        psi.Environment["PYTHONIOENCODING"] = "utf-8";
+        psi.Environment["PYTHONUNBUFFERED"] = "1";
+
+        var progress = new EngineProgress { Stage = "Анализ", OutputPath = expectedOutput };
+        var verificationStarted = false;
+
+        try
+        {
+            lock (_lock) { _current = Process.Start(psi); }
+            var proc = _current;
+            if (proc == null)
+                throw new InvalidOperationException("Не удалось запустить движок.");
+
+            _treeKiller.Attach(proc.Id);
+
+            // Чтение stdout и stderr параллельно, чтобы не заблокировать каналы.
+            var errTask = Task.Run(() =>
+            {
+                try { result.LogLines.AddRange(ReadAll(proc.StandardError)); } catch { }
+            });
+
+            using var reader = proc.StandardOutput;
+            string? line;
+            while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) is not null)
+            {
+                if (ct.IsCancellationRequested || _cancelRequested)
+                {
+                    Cancel();
+                    break;
+                }
+                result.LogLines.Add(line);
+                ApplyLogLine(line, progress, result, ref verificationStarted);
+            }
+
+            errTask.Wait();
+            proc.WaitForExit();
+            result.ExitCode = proc.ExitCode;
+
+            if (_cancelRequested || ct.IsCancellationRequested)
+                result.ExitCode = 130;
+
+            if (result.Success)
+                result.OutputPath = expectedOutput;
+        }
+        catch (OperationCanceledException)
+        {
+            result.ExitCode = 130;
+            result.ErrorMessage = "Обработка отменена.";
+        }
+        catch (Exception ex)
+        {
+            result.ExitCode = 3;
+            result.ErrorMessage = ex.Message;
+        }
+
+        Completed?.Invoke(this, result);
+        return result;
+    }
+
+    private static IEnumerable<string> ReadAll(System.IO.StreamReader reader)
+    {
+        var lines = new List<string>();
+        string? line;
+        while ((line = reader.ReadLine()) is not null)
+            lines.Add(line);
+        return lines;
+    }
+
+    private static string ComputeOutputPath(string source, string targetFps)
+    {
+        var suffix = targetFps.Replace("x", "mul");
+        var fi = new FileInfo(source);
+        return Path.Combine(fi.DirectoryName ?? string.Empty,
+            $"{fi.Name.Replace(fi.Extension, "")}_{suffix}fps_master.mp4");
+    }
+
+    private static string Quote(string s) => s;
+
+    private static readonly Regex SegmentRegex = new(@"Сегмент\s+(\d+)\s*/\s*(\d+)", RegexOptions.Compiled);
+    private static readonly Regex RifeSummaryRegex = new(@"RIFE:\s*(\d+)\s*кадров,\s*(\d+)\s*сегментов", RegexOptions.Compiled);
+    private static readonly Regex PercentRegex = new(@"(\d+(?:\.\d+)?)\s*%", RegexOptions.Compiled);
+
+    private void ApplyLogLine(string line, EngineProgress progress, EngineResult result,
+        ref bool verificationStarted)
+    {
+        var lower = line.ToLowerInvariant();
+
+        if (lower.Contains("рифе:") || lower.Contains("rife:"))
+        {
+            var m = RifeSummaryRegex.Match(line);
+            if (m.Success)
+            {
+                progress.TotalSegments = int.Parse(m.Groups[2].Value);
+                progress.Stage = "RIFE AI";
+                progress.Message = $"Сегментов: {progress.TotalSegments}";
+                progress.Percent = 0;
+            }
+            return;
+        }
+
+        var sm = SegmentRegex.Match(line);
+        if (sm.Success)
+        {
+            progress.CurrentSegment = int.Parse(sm.Groups[1].Value);
+            progress.TotalSegments = int.Parse(sm.Groups[2].Value);
+            progress.TotalSegments = Math.Max(progress.TotalSegments, progress.CurrentSegment);
+            progress.Stage = "Кодирование";
+            progress.Message = $"Сегмент {progress.CurrentSegment}/{progress.TotalSegments}";
+            progress.Percent = progress.TotalSegments > 0
+                ? (double)progress.CurrentSegment / progress.TotalSegments * 100
+                : 0;
+            return;
+        }
+
+        if (lower.Contains("интерполяция завершена"))
+        {
+            progress.Stage = "Кодирование";
+            progress.Message = "Интерполяция завершена";
+            progress.Percent = Math.Max(progress.Percent, 90);
+            return;
+        }
+
+        if (lower.Contains("кодирование завершено"))
+        {
+            progress.Stage = "Кодирование";
+            progress.Message = "Кодирование завершено";
+            progress.Percent = 98;
+            return;
+        }
+
+        if (lower.Contains("проверка результата") || lower.Contains("проверка результата (ffprobe)"))
+        {
+            verificationStarted = true;
+            progress.Stage = "Готово";
+            progress.Message = "Верификация результата...";
+            progress.Percent = 99;
+            return;
+        }
+
+        if (verificationStarted && line.Contains(':'))
+        {
+            var idx = line.IndexOf(':');
+            var key = line.Substring(0, idx).Trim();
+            var val = line.Substring(idx + 1).Trim();
+            if (!string.IsNullOrEmpty(key) && key.Length < 40)
+                result.Verification[key] = val;
+        }
+
+        if (lower.StartsWith("результат:"))
+        {
+            var path = line.Substring(line.IndexOf(':') + 1).Trim();
+            if (File.Exists(path)) result.OutputPath = path;
+            verificationStarted = false;
+            progress.Percent = 100;
+            progress.Stage = "Готово";
+            progress.Message = "Готово";
+        }
+
+        // Downscale-режим выводит процент вроде " 50.1%".
+        var pm = PercentRegex.Match(line);
+        if (pm.Success && progress.Stage != "Готово")
+        {
+            if (double.TryParse(pm.Groups[1].Value, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var pct))
+            {
+                progress.Percent = pct;
+                progress.Stage = "Кодирование";
+                progress.Message = $"Кодирование {pct:0}%";
+            }
+        }
+
+        ProgressChanged?.Invoke(this, progress);
+    }
+}
