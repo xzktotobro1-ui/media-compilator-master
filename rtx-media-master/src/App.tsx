@@ -552,13 +552,13 @@ export default function App() {
           </div>
         </div>
 
-        <nav className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-1" data-tauri-drag-region>
+        <nav className="flex min-w-0 flex-1 items-center justify-center gap-0.5 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-1" data-tauri-drag-region>
           {TABS.map(({ label, icon: Icon }, i) => (
             <button
               key={label}
               onClick={() => setTab(i)}
               className={cn(
-                "relative flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-medium transition-colors",
+                "relative flex items-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-medium transition-colors",
                 tab === i ? "text-white" : "text-zinc-500 hover:text-zinc-200",
               )}
             >
@@ -576,13 +576,13 @@ export default function App() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-3">
-          <div className="hidden items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-1.5 xl:flex">
-            <Gauge size={14} className="text-emerald-400" />
-            <span className="max-w-[150px] truncate text-[11px] text-zinc-300">{gpu?.name ?? "N/A"}</span>
-            <span className="h-3 w-px bg-white/10" />
-            <span className="tabular font-mono text-[11px] text-zinc-400">{gpu?.temperature_c ?? "N/A"}°C</span>
-            <span className="tabular font-mono text-[11px] text-zinc-400">{gpu?.utilization_gpu ?? "N/A"}%</span>
-            <span className="tabular font-mono text-[11px] text-zinc-400">
+          <div className="hidden min-w-0 max-w-[220px] items-center gap-2 truncate rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-1.5 xl:flex">
+            <Gauge size={14} className="shrink-0 text-emerald-400" />
+            <span className="max-w-[120px] shrink truncate text-[11px] text-zinc-300">{gpu?.name ?? "N/A"}</span>
+            <span className="h-3 w-px shrink-0 bg-white/10" />
+            <span className="tabular shrink-0 font-mono text-[11px] text-zinc-400">{gpu?.temperature_c ?? "N/A"}°C</span>
+            <span className="tabular shrink-0 font-mono text-[11px] text-zinc-400">{gpu?.utilization_gpu ?? "N/A"}%</span>
+            <span className="tabular shrink-0 font-mono text-[11px] text-zinc-400">
               {gpu?.memory_used_mb ?? "N/A"}/{gpu?.memory_total_mb ?? "N/A"} MB
             </span>
           </div>
@@ -878,9 +878,9 @@ export default function App() {
         <div className="fixed bottom-5 left-1/2 z-30 w-[min(1180px,calc(100%-2.5rem))] -translate-x-1/2">
           <motion.div layout className="rounded-2xl border border-white/[0.08] bg-zinc-900/85 p-3 shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop-blur-2xl">
             <div className="flex flex-wrap items-center gap-2">
-              <Select value={settings.mode} onChange={(e) => set("mode", e.target.value as Settings["mode"])} className="w-36"><option value="compress">Только сжатие</option><option value="rife">RIFE + Сжатие</option></Select>
-              <Select value={settings.codec} onChange={(e) => set("codec", e.target.value)} className="w-28"><option value="auto">AV1/HEVC Auto</option><option value="av1">AV1</option><option value="hevc">HEVC</option><option value="h264">H.264</option><option value="vvc">VVC</option></Select>
-              <Select value={settings.fps} onChange={(e) => set("fps", e.target.value)} className="w-28"><option value="original">Исходный</option><option value="60">60</option><option value="120">120</option><option value="2x">2x</option><option value="3x">3x</option></Select>
+              <Select value={settings.mode} onChange={(e) => set("mode", e.target.value as Settings["mode"])} className="w-36 pl-3 pr-7"><option value="compress">Только сжатие</option><option value="rife">RIFE + Сжатие</option></Select>
+              <Select value={settings.codec} onChange={(e) => set("codec", e.target.value)} className="w-28 pl-3 pr-7"><option value="auto">AV1/HEVC Auto</option><option value="av1">AV1</option><option value="hevc">HEVC</option><option value="h264">H.264</option><option value="vvc">VVC</option></Select>
+              <Select value={settings.fps} onChange={(e) => set("fps", e.target.value)} className="w-28 pl-3 pr-7"><option value="original">Исходный</option><option value="60">60</option><option value="120">120</option><option value="2x">2x</option><option value="3x">3x</option></Select>
               <Select value={settings.profile} onChange={(e) => set("profile", e.target.value)} className="w-32"><option value="compact">Compact</option><option value="balanced">Balanced</option><option value="quality">Quality</option></Select>
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-1.5"><Toggle checked={settings.enhance} onChange={(v) => set("enhance", v)} label="Enhance" /></div>
               <Button variant="ghost" size="sm" onClick={() => setProOpen(!proOpen)} className="ml-auto"><SlidersHorizontal size={14} /> Pro Studio <ChevronDown size={13} className={cn("transition-transform", proOpen && "rotate-180")} /></Button>

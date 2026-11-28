@@ -29,11 +29,14 @@
     "externalBin": [
       "binaries/rtx_engine",
       "binaries/ffmpeg",
-      "binaries/ffprobe"
+      "binaries/ffprobe",
+      "binaries/rife-ncnn-vulkan"
     ],
-    "resources": [
-      "binaries/_internal/*"
-    ],
+    "resources": {
+      "binaries/_internal/": "_internal/",
+      "binaries/models/": "models/",
+      "binaries/vcomp140.dll": ""
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

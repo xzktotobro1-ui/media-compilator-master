@@ -32,7 +32,8 @@
 
 1. Скачайте `setup.exe` из [последнего релиза](https://github.com/xzktotobro1-ui/media-compilator-master/releases/latest).
 2. Запустите установщик: он предложит папку установки, создаст ярлыки и опционально добавит пункт «Сжать / Улучшить через RTX Media Master» в контекстное меню Windows (передаёт `%1` в аргументы).
-3. Для RIFE нужен GPU с поддержкой Vulkan и модель `rife-v4.6`. NVENC/AMF необязательны — есть программный фолбэк.
+3. Рядом с `rtx-media-master.exe` устанавливаются `rtx_engine.exe`, `ffmpeg.exe`, `ffprobe.exe`, `rife-ncnn-vulkan.exe`, `vcomp140.dll`, папки `_internal/` и `models/` (включая `models/rife-v4.6`) из релиза v3.5.
+4. Для RIFE нужен GPU с поддержкой Vulkan и модель `rife-v4.6`. NVENC/AMF необязательны — есть программный фолбэк.
 
 ## Headless-бэкенд
 
