@@ -27,7 +27,12 @@
     "active": true,
     "targets": "nsis",
     "externalBin": [
-      "binaries/rtx_engine"
+      "binaries/rtx_engine",
+      "binaries/ffmpeg",
+      "binaries/ffprobe"
+    ],
+    "resources": [
+      "binaries/_internal/*"
     ],
     "icon": [
       "icons/32x32.png",

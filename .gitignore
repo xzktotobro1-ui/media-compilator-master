@@ -1,1 +1,39 @@
-﻿# ╨б╨│╨╡╨╜╨╡╤А╨╕╤А╨╛╨▓╨░╨╜╨╜╤Л╨╡ ╤Б╨▒╨╛╤А╨║╨╕ ╨╕ ╨▒╨╕╨╜╨░╤А╨╜╨╕╨║╨╕dist/build/dist_new/*.spec.bak*.msi*.exe*.dll*.pyd*.bin*.parammodels/_assets_backup/# ╨Ы╨╛╨│╨╕ ╨╕ ╨┐╨╛╨╗╤М╨╖╨╛╨▓╨░╤В╨╡╨╗╤М╤Б╨║╨╕╨╡ ╨┤╨░╨╜╨╜╤Л╨╡*.logsettings.jsoncrash_log.txt# Python__pycache__/*.py[cod].venv/venv/# ╨б╨│╨╡╨╜╨╡╤А╨╕╤А╨╛╨▓╨░╨╜╨╜╤Л╨╣ WiX-╨╕╤Б╤В╨╛╤З╨╜╨╕╨║installer/Package.wxs*.part# Tauri/Nodenode_modules/rtx-media-master/src-tauri/target/rtx-media-master/dist/dist_engine/
+﻿# Сгенерированные сборки и бинарники
+dist/
+build/
+dist_new/
+dist_engine/
+src/build/
+installer/__pycache__/
+*.spec.bak
+*.msi
+*.exe
+*.dll
+*.pyd
+*.bin
+*.param
+models/_assets_backup/
+
+# Логи и пользовательские данные
+*.log
+settings.json
+crash_log.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Сгенерированный WiX-источник
+installer/Package.wxs
+*.part
+
+# Tauri / Node
+node_modules/
+rtx-media-master/src-tauri/target/
+rtx-media-master/dist/
+
+# Тяжёлые sidecar-бинарники и модели (собираются/скачиваются локально)
+rtx-media-master/src-tauri/binaries/
+rtx-media-master/src-tauri/resources/
