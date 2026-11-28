@@ -92,3 +92,7 @@ wix build installer/Package.wxs -o RTX_Media_Master_v3.msi
 - [РџСЂР°РІРёР»Р° СѓС‡Р°СЃС‚РёСЏ](CONTRIBUTING.md), [РСЃС‚РѕСЂРёСЏ РёР·РјРµРЅРµРЅРёР№](CHANGELOG.md), [РџР»Р°РЅС‹](docs/ROADMAP.md), [РљРѕРґРµРєСЃ РїРѕРІРµРґРµРЅРёСЏ](CODE_OF_CONDUCT.md)
 
 РђРІС‚РѕСЂ: **x_kitaikuyo_x**. РљРѕРґ РїСЂРёР»РѕР¶РµРЅРёСЏ вЂ” [MIT](LICENSE). РЎС‚РѕСЂРѕРЅРЅРёРµ РєРѕРјРїРѕРЅРµРЅС‚С‹ РїРµСЂРµС‡РёСЃР»РµРЅС‹ РІ [NOTICE.md](NOTICE.md); Р±РёРЅР°СЂРЅС‹Рµ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё РІ СЂРµРїРѕР·РёС‚РѕСЂРёРё РЅРµ С…СЂР°РЅСЏС‚СЃСЏ.
+
+## RTX Media Master v4.1 — Novator Edition
+Новый десктопный интерфейс на Tauri v2 + React + TypeScript + Tailwind. Умные пресеты сжатия (Telegram/Архив/RIFE/Enhance), студия сравнения До/После со шторкой, Watch Folder, реальная GPU-телеметрия и проверка энкодеров ffmpeg.
+
